@@ -14,4 +14,6 @@ test('같은 팀 말 잡기 금지',()=>{const g=fill(createGame('team',4));g.pi
 test('갈림길 목적지 옵션',()=>{const o=optionsFor({pos:5,route:'outer'},1);assert.equal(o.length,2);assert.deepEqual(o.map(v=>v.to).sort((a,b)=>a-b),[6,21]);});
 test('파워 게이지는 결과 조작하지 않음',()=>{const g=fill(createGame('individual',2));roll(g,0,99,[1,0,0,0]);assert.equal(g.lastPower,99);assert.equal(g.roll.steps,1);});
 test('승리 판정',()=>{const g=fill(createGame('individual',2));for(const p of g.pieces[0]){p.pos='FIN';}g.pieces[0][0].pos=19;roll(g,0,45,[1,0,0,0]);move(g,0,0,'outer',0,'FIN');assert.equal(g.winner,0);});
+test('낙 시 결과 누적 없이 차례 변경',()=>{const g=fill(createGame('individual',2));roll(g,0,50,undefined,true);assert.equal(g.turn,1);assert.equal(g.roll.label,'낙');assert.equal(g.pending.length,0);});
+test('윷 추가 던지기의 낙은 이전 윷 결과 유지',()=>{const g=fill(createGame('individual',2));roll(g,0,50,[1,1,1,1]);roll(g,0,50,undefined,true);assert.equal(g.turn,0);assert.equal(g.phase,'move');assert.equal(g.pending.length,1);});
 console.log(tests+'개 테스트 통과');

@@ -33,8 +33,18 @@ function movesFor(game,player){
  }
  return all;
 }
-function roll(game,player,power=50,forcedBits){
+function roll(game,player,power=50,forcedBits,forcedNak=false){
  if(game.turn!==player||game.phase!=='roll'||game.winner!==null)throw Error('지금은 윷을 던질 수 없습니다.');
+ const nak=forcedNak || (!forcedBits && Math.random()<0.055);
+ if(nak){
+  const result={id:++game.throwNo,steps:0,label:'낙',bits:[],bonus:false,nak:true};
+  game.roll=result;game.lastPower=Math.max(0,Math.min(100,Number(power)||0));
+  game.history.unshift(`${game.players[player].name} · 낙! 던진 윷이 판 밖으로 떨어졌습니다.`);
+  game.history=game.history.slice(0,14);
+  if(game.pending.length){game.phase='move';}
+  else{game.phase='roll';game.turn=(player+1)%game.players.length;}
+  return result;
+ }
  const bits=forcedBits||Array.from({length:4},()=>Math.random()<.5?1:0);
  if(bits.length!==4||bits.some(b=>b!==0&&b!==1))throw Error('잘못된 윷 결과입니다.');
  const count=bits.reduce((a,b)=>a+b,0),steps=count===0?5:count;

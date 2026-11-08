@@ -1,7 +1,7 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const initialInvite=new URLSearchParams(location.search).get('room');
-const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,sound:localStorage.getItem('yut-muted')!=='1'};
+const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,selectedRoll:0,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,sound:localStorage.getItem('yut-muted')!=='1'};
 localStorage.setItem('yut-session',state.session);
 const positions={0:[510,510],21:[435,135],22:[360,210],23:[285,285],24:[210,360],25:[135,435],26:[135,135],27:[210,210],28:[360,360],29:[435,435]};
 for(let i=1;i<=5;i++)positions[i]=[510,510-90*i];
@@ -17,7 +17,7 @@ function board(){const svg=$('board-svg');svg.innerHTML='';const NS='http://www.
 }
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>$('toast').classList.remove('show'),3000);}
 function connStatus(online){$('connection').classList.toggle('online',online);$('connection').innerHTML='<i></i> '+(online?'서버 연결됨':'연결 중...');}
-function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value,token:state.token});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];if(msg.account)state.account=msg.account;state.selected=null;closeRouteModal();updateAccount();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='hello'){if(msg.account){state.account=msg.account;updateAccount();}}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
+function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value,token:state.token});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];if(msg.account)state.account=msg.account;state.selected=null;state.selectedRoll=0;renderTargets();updateAccount();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='hello'){if(msg.account){state.account=msg.account;updateAccount();}}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
 function send(msg){if(state.ws?.readyState===WebSocket.OPEN)state.ws.send(JSON.stringify(msg));else toast('서버에 연결 중입니다. 다시 시도해 주세요.');}
 function ready(){const g=state.game;return !!(g&&g.players.every(p=>p.name&&p.connected));}
 function myTurn(){return ready()&&state.game.turn===state.player&&state.game.winner===null;}
@@ -49,15 +49,15 @@ function render(){const g=state.game;if(!g)return;
  else if(waiting){title=g.playerCount+'명 입장 대기';desc=g.players.filter(p=>p.name&&p.connected).length+' / '+g.playerCount+'명 접속 · 친구에게 방 코드를 알려주세요.';}
  else if(!me){title='상대방 차례';desc=g.players[g.turn].name+' 님이 플레이하고 있습니다.';}
  else if(g.phase==='roll'){title=g.pending.length?'윷·모 추가 던지기!':'윷을 던질 차례!';desc='버튼을 누른 채 파워를 충전하고 손을 떼면 던집니다.';}
- else{title='말을 선택하세요';desc='쌓인 '+g.pending.length+'개의 결과 중 하나를 골라 이동하세요.';}
+ else{title=state.selected===null?'말을 선택하세요':'윷놀이판의 빛나는 칸을 터치하세요';desc=state.selected===null?'말을 고른 뒤 사용할 윷 결과와 판 위 목적지를 선택하세요.':'사용할 결과를 고르면 이동할 수 있는 칸이 판에 표시됩니다.';}
  $('action-title').textContent=title;$('action-description').textContent=desc;
  $('turn-hint').textContent=g.winner!==null?'경기 종료':waiting?g.playerCount+'명을 기다리는 중...':g.players[g.turn].name+' 차례';
  $('throw').disabled=!(me&&g.phase==='roll');$('throw').textContent=me&&g.phase==='roll'?'누르고 있다가 놓아 던지기 ↗':'윷 던지기';
  $('roll-result').textContent=g.roll?g.roll.label+'!':g.winner!==null?'종료':me?'준비!':'대기';
  $('roll-result').style.color=g.roll?.bonus?'#e29a22':'#be8b2e';
- const sticks=$('yut-sticks').children;for(let i=0;i<4;i++){sticks[i].classList.toggle('back',!!g.roll&&g.roll.bits[i]===1);sticks[i].querySelector('i').textContent=!g.roll?'윷':g.roll.bits[i]?'●':'윷';}
+ if(g.roll && (state.room+':'+g.moveNo+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.moveNo+':'+g.roll.id;window.yut3d?.toss?.(g.roll,g.lastPower);if(g.roll.nak)playSound('nak');}
  const history=$('history');history.innerHTML='';for(const h of g.history.length?g.history:['첫 번째 윷을 던져보세요.']){const p=document.createElement('p');p.textContent=h;history.appendChild(p);}
- renderTokens();renderChoices();renderPending();$('win-modal').classList.toggle('hidden',g.winner===null);
+ renderTokens();renderPending();renderTargets();$('win-modal').classList.toggle('hidden',g.winner===null);
  if(g.winner!==null){if(!state.winSoundFor||state.winSoundFor!==state.room+':'+g.moveNo){playSound('win');state.winSoundFor=state.room+':'+g.moveNo;}const winner=g.mode==='team'?(g.winner===0?'청팀':'홍팀'):g.players[g.winner].name;$('win-title').textContent=winner+' 승리!';$('win-subtitle').textContent=g.mode==='team'?'승리 팀의 말 8개가 모두 완주했습니다.':'말 4개를 먼저 완주했습니다.';}
 }
 function renderTokens(){const g=state.game;const root=$('board-tokens');root.innerHTML='';const occupied=new Map();
@@ -74,44 +74,55 @@ function renderTokens(){const g=state.game;const root=$('board-tokens');root.inn
   if(selected)el.addEventListener('click',()=>choosePiece(ids.find(i=>state.moves.some(m=>m.piece===i))));else el.disabled=true;root.appendChild(el);
  }
 }
-function closeRouteModal(){const modal=$('route-modal');if(modal)modal.classList.add('hidden');}
-function choosePiece(index){const options=state.moves.filter(m=>m.piece===index);if(!options.length)return;state.selected=index;playSound('select');renderChoices();}
-function renderPending(){const root=$('pending-rolls');root.innerHTML='';const g=state.game;if(!g)return;for(const [i,r] of g.pending.entries()){const el=document.createElement('span');el.className='pending-pill';el.textContent=(i+1)+' · '+r.label;root.appendChild(el);}}
-function renderChoices(){
- const root=$('route-modal-options');root.innerHTML='';if(state.selected===null){closeRouteModal();return;}
- const options=state.moves.filter(m=>m.piece===state.selected);if(!options.length){closeRouteModal();return;}
- const routeNames={outer:'바깥길',cut5:'대각선 지름길',cut10:'대각선 지름길',cut5fast:'중앙 빠른길',cut10long:'중앙 바깥길'};
- const ul=document.createElement('div');ul.className='destination-grid';
- for(const option of options){const button=document.createElement('button');button.className='route-choice';
-  const enemies=option.to==='FIN'?0:state.game.pieces.reduce((sum,ps,owner)=>sum+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===option.to).length),0);
-  button.textContent=option.label+' ('+option.steps+'칸) → '+(option.to==='FIN'?'완주':routeNames[option.route]+' · '+(option.to===0?'출발/도착':option.to+'번 칸'))+(enemies?' 🎯 '+enemies+'개 잡기':'');
-  button.addEventListener('click',()=>confirmMove(option));ul.appendChild(button);
+function closeRouteModal(){renderTargets();}
+function choosePiece(index){
+ const options=state.moves.filter(m=>m.piece===index);
+ if(!options.length)return;
+ state.selected=index;
+ if(!options.some(o=>o.rollIndex===state.selectedRoll))state.selectedRoll=options[0].rollIndex;
+ playSound('select');renderPending();renderTargets();
+ document.getElementById('board').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function renderPending(){
+ const root=$('pending-rolls');root.innerHTML='';const g=state.game;if(!g)return;
+ for(const [i,r] of g.pending.entries()){
+  const el=document.createElement('button');el.type='button';
+  el.className='pending-pill'+(state.selectedRoll===i?' chosen':'');
+  el.textContent=(i+1)+' · '+r.label+(state.selectedRoll===i?' ✓':'');
+  el.disabled=!(myTurn()&&g.phase==='move');
+  el.addEventListener('click',()=>{state.selectedRoll=i;playSound('select');renderPending();renderTargets();});root.appendChild(el);
  }
- root.appendChild(ul);$('route-modal-title').textContent=(state.selected+1)+'번 말 · 도착할 칸을 선택하세요';$('route-modal').classList.remove('hidden');
 }
-function confirmMove(option){
- const g=state.game,point=option.to==='FIN'?'완주':option.to===0?'출발/도착':option.to+'번 칸';
- const enemies=option.to==='FIN'?0:g.pieces.reduce((n,ps,i)=>n+(i===state.player||(g.mode==='team'&&i%2===state.player%2)?0:ps.filter(p=>p.pos===option.to).length),0);
- const yes=window.confirm(option.label+' 사용 · '+(state.selected+1)+'번 말을 '+point+'으로 이동'+(enemies?'\n상대 말 '+enemies+'개 잡기!':'')+'\n확정하시겠습니까?');
- if(!yes)return;
- playSound(enemies?'capture':'move');send({type:'move',piece:state.selected,rollIndex:option.rollIndex,route:option.route,to:option.to});state.selected=null;closeRouteModal();
+function renderTargets(){
+ const root=$('board-targets');if(!root)return;root.innerHTML='';
+ if(!state.game||state.selected===null)return;
+ const options=state.moves.filter(m=>m.piece===state.selected&&m.rollIndex===state.selectedRoll);
+ for(const option of options){
+  const point=positions[option.to==='FIN'?0:option.to];if(!point)continue;
+  const enemies=option.to==='FIN'?0:state.game.pieces.reduce((count,ps,owner)=>count+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===option.to).length),0);
+  const target=document.createElement('button');target.type='button';target.className='board-target'+(enemies?' capture':'')+(option.to==='FIN'?' finish':'');
+  target.style.left=(point[0]/570*100)+'%';target.style.top=(point[1]/570*100)+'%';
+  target.innerHTML='<span>'+ (option.to==='FIN'?'완주':enemies?'잡기':'여기')+'</span>';
+  target.setAttribute('aria-label',option.label+' 결과로 '+(option.to==='FIN'?'완주':option.to+'번 칸')+' 이동');
+  target.addEventListener('click',()=>{playSound(enemies?'capture':'move');send({type:'move',piece:state.selected,rollIndex:option.rollIndex,route:option.route,to:option.to});state.selected=null;root.innerHTML='';});
+  root.appendChild(target);
+ }
 }
-$('route-cancel').addEventListener('click',()=>{state.selected=null;closeRouteModal();});
 let lastFrame=0;
 function animateGauge(t){if(t-lastFrame>25){lastFrame=t;const value=state.charging?Math.min(100,(t-state.chargeStart)/14):0;state.chargePower=value;$('gauge-value').style.width=value+'%';$('gauge-value').classList.toggle('charged',value>=90);}state.raf=requestAnimationFrame(animateGauge);}
 let audioContext;
 function playSound(type){if(!state.sound)return;try{
  audioContext=audioContext||new(window.AudioContext||window.webkitAudioContext)();audioContext.resume();
  const now=audioContext.currentTime;
- const count=type==='roll'?5:type==='capture'?4:type==='win'?7:1;
+ const count=type==='roll'?5:type==='capture'?4:type==='win'?7:type==='nak'?3:1;
  for(let j=0;j<count;j++){
  const osc=audioContext.createOscillator(),gain=audioContext.createGain(),t=now+j*(type==='roll'?.065:.09);
- osc.type=type==='roll'||type==='capture'?'triangle':'sine';osc.frequency.setValueAtTime((type==='roll'?170:type==='capture'?390:type==='win'?480:280)+j*(type==='win'?90:28),t);
+ osc.type=type==='roll'||type==='capture'?'triangle':'sine';osc.frequency.setValueAtTime((type==='roll'?170:type==='capture'?390:type==='nak'?110:type==='win'?480:280)+j*(type==='win'?90:28),t);
  gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(type==='roll'?.19:.11,t+.012);gain.gain.exponentialRampToValueAtTime(.0001,t+.15);osc.connect(gain);gain.connect(audioContext.destination);osc.start(t);osc.stop(t+.16);
  }
  }catch{}}
 function beginCharge(e){if(!myTurn()||state.game.phase!=='roll'||state.charging)return;if(e?.cancelable)e.preventDefault();state.charging=true;state.chargeStart=performance.now();$('throw').classList.add('charging');try{if(e?.pointerId!=null)$('throw').setPointerCapture(e.pointerId);}catch{}playSound('select');}
-function endCharge(e){if(!state.charging)return;if(e?.cancelable)e.preventDefault();state.chargePower=Math.min(100,(performance.now()-state.chargeStart)/14);state.charging=false;$('throw').classList.remove('charging');if(!myTurn()||state.game.phase!=='roll')return;send({type:'roll',power:Math.round(state.chargePower)});$('yut-sticks').classList.add('throwing');playSound('roll');setTimeout(()=>$('yut-sticks').classList.remove('throwing'),850);}
+function endCharge(e){if(!state.charging)return;if(e?.cancelable)e.preventDefault();state.chargePower=Math.min(100,(performance.now()-state.chargeStart)/14);state.charging=false;$('throw').classList.remove('charging');if(!myTurn()||state.game.phase!=='roll')return;send({type:'roll',power:Math.round(state.chargePower)});playSound('roll');}
 $('throw').addEventListener('pointerdown',beginCharge);$('throw').addEventListener('pointerup',endCharge);$('throw').addEventListener('pointercancel',()=>{state.charging=false;$('throw').classList.remove('charging');});
 $('throw').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat)beginCharge(e);});$('throw').addEventListener('keyup',e=>{if(e.key==='Enter'||e.key===' ')endCharge(e);});
 $('mode').addEventListener('change',()=>{const team=$('mode').value==='team';$('player-count').value=team?'4':$('player-count').value;$('player-count').disabled=team;});
