@@ -1,1 +1,16 @@
-{"name":"yutnori-online","version":"2.2.0","private":true,"description":"2~4인 실시간 윷놀이, 낙, 판 위 직접 목적지 선택, 3D 물리 투척, 가상 머니 및 계정","scripts":{"start":"node server.js","test":"node tests.js"},"engines":{"node":">=20"},"dependencies":{"pg":"^8.16.3"}}
+{
+  "name": "yutnori-online",
+  "version": "2.7.0",
+  "private": true,
+  "description": "2~4인 실시간 윷놀이, 영상 참고 원형 3D 투척판, 지도 직접 이동, 낙/빽도/누적 결과, 가상 머니 및 영구 계정",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}

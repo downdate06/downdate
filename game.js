@@ -15,10 +15,10 @@ function teamOf(game,player){return game.mode==='team'?player%2:player;}
 function sameSide(game,a,b){return teamOf(game,a)===teamOf(game,b);}
 
 function routesFor(piece){
- if(piece.pos===5&&piece.route==='outer')return ['outer','cut5'];
- if(piece.pos===10&&piece.route==='outer')return ['outer','cut10'];
- if(piece.pos===23&&piece.route==='cut5')return ['cut5','cut5fast'];
- if(piece.pos===23&&piece.route==='cut10')return ['cut10','cut10long'];
+ if(piece.pos===5&&piece.route==='outer')return ['cut5'];
+ if(piece.pos===10&&piece.route==='outer')return ['cut10'];
+ if(piece.pos===23&&piece.route==='cut5')return ['cut5fast'];
+ if(piece.pos===23&&piece.route==='cut10')return ['cut10long'];
  return [piece.route];
 }
 

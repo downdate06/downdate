@@ -13,7 +13,7 @@ test('목적지 확인 불일치 시 거부',()=>{const g=fill(createGame('indiv
 test('상대 말 잡으면 추가 던지기',()=>{const g=fill(createGame('individual',2));g.pieces[1][0].pos=1;roll(g,0,20,[1,0,0,0]);const result=move(g,0,0,'outer',0,1);assert.equal(result.captured,1);assert.equal(g.pieces[1][0].pos,-1);assert.equal(g.phase,'roll');assert.equal(g.turn,0);});
 test('윷으로 잡아도 추가 던지기 보너스 중복 없음',()=>{const g=fill(createGame('individual',2));g.pieces[1][0].pos=4;roll(g,0,20,[1,1,1,1]);roll(g,0,20,[1,0,0,0]);move(g,0,0,'outer',0,4);assert.equal(g.phase,'move');assert.equal(g.pending.length,1);assert.equal(g.pending[0].steps,1);});
 test('같은 팀 말 잡기 금지',()=>{const g=fill(createGame('team',4));g.pieces[2][0].pos=1;roll(g,0,20,[1,0,0,0]);assert.equal(move(g,0,0,'outer',0,1).captured,0);});
-test('모퉁이에서 바깥길 또는 지름길 선택',()=>{const o=optionsFor({pos:5,route:'outer'},1);assert.equal(o.length,2);assert.deepEqual(o.map(x=>x.to).sort((a,b)=>a-b),[6,21]);});
+test('모퉁이에서는 지름길 자동 선택',()=>{const o=optionsFor({pos:5,route:'outer'},1);assert.equal(o.length,1);assert.equal(o[0].to,21);assert.equal(o[0].route,'cut5');});
 test('파워 게이지는 결과 조작하지 않음',()=>{const g=fill(createGame('individual',2));roll(g,0,99,[1,0,0,0]);assert.equal(g.lastPower,99);assert.equal(g.roll.steps,1);});
 test('도착칸에 먼저 선 뒤 다음 이동으로 완주',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=19;roll(g,0,45,[1,0,0,0]);move(g,0,0,'outer',0,30);assert.equal(g.pieces[0][0].pos,30);roll(g,1,45,[1,0,0,0]);move(g,1,0,'outer',0,1); // dummy
  g.turn=0;g.phase='move';g.pending=[{id:99,steps:1,label:'도'}];
@@ -78,5 +78,5 @@ test('모 윷 도 누적 시 윷 → 도 → 모 순서로 기존 말과 새 말
 });
 
 test('빽도: 출발 후 도 위치에서 도착칸으로 이동',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=1;g.phase='move';g.pending=[{id:5,label:'빽도',steps:-1}];const option=movesFor(g,0).find(m=>m.piece===0);assert.equal(option.to,30);move(g,0,0,'outer',0,30);assert.equal(g.pieces[0][0].pos,30);});
-test('모퉁이 같은 결과로 직진과 대각선 별도 선택',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=5;g.phase='move';g.pending=[{id:4,label:'도',steps:1}];assert.deepEqual(movesFor(g,0).filter(x=>x.piece===0).map(x=>x.to).sort((a,b)=>a-b),[6,21]);move(g,0,0,'outer',0,6);assert.equal(g.pieces[0][0].pos,6);});
+test('게임판 모퉁이 강제 지름길만 허용',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=5;g.phase='move';g.pending=[{id:4,label:'도',steps:1}];assert.deepEqual(movesFor(g,0).filter(x=>x.piece===0).map(x=>x.to),[21]);assert.throws(()=>move(g,0,0,'outer',0,6));move(g,0,0,'cut5',0,21);assert.equal(g.pieces[0][0].pos,21);});
 console.log(tests+'개 테스트 통과');

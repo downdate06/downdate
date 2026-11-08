@@ -65,3 +65,21 @@
 @media(max-width:600px){.target-cluster{max-width:124px;gap:2px;padding:2px;border-radius:10px;min-width:44px}.target-cluster .board-target.target-choice{width:41px;height:41px}.target-cluster .board-target strong{font-size:14px}.target-cluster .board-target small{font-size:9px}}
 
 .board-preview{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;overflow:visible}
+
+/* v2.7: circular throw arena, legible result, touch-friendly target choices */
+#yut-stage{height:186px;background:radial-gradient(ellipse,#f3ddbc 0%,#d9b681 80%);border:1px solid #bd8959}
+.throw-platform{max-width:410px;margin:auto;padding:6px 7px;background:linear-gradient(135deg,#ad7443,#e9c494,#986036)}
+.yut-stage-status{left:9px;right:9px;bottom:7px;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.yut-stage-status{background:none!important;box-shadow:none!important;font-size:12px;font-weight:900;color:#fff;letter-spacing:.1px;text-shadow:0 1px 2px #0008}
+.yut-stage-status:not(:empty){background:transparent}
+.yut-stage-status:before{content:'';position:absolute;inset:-5px -4px;background:#244b35e8;border-radius:15px;z-index:-1;box-shadow:0 2px 8px #0005}
+.yut-stage-status.nak:before{background:#b3231eee}
+.face-die{width:42px;height:30px;border-radius:9px;font-size:14px}
+.face-die.flat{background:#694027;color:#fff1dc}
+.board-choice-panel{padding:9px 10px}
+.board-choice-panel .pending-rolls{gap:7px}
+.board-choice-panel .pending-info{font-size:13px;min-height:34px;padding:6px 10px}
+.target-cluster{max-width:170px}
+.target-cluster .board-target.target-choice{min-width:48px;min-height:46px}
+.board-note{line-height:1.4}
+@media(max-width:600px){#yut-stage{height:165px}.throw-platform{max-width:335px}.result-area-3d{min-height:245px}.target-cluster{max-width:142px}.target-cluster .board-target.target-choice{min-width:42px;min-height:42px}.yut-stage-status{font-size:11px}}

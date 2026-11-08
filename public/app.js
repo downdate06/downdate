@@ -1,5 +1,6 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
+window.yutThrowSettled=payload=>{const roll=state.game?.roll;if(!roll||roll.id!==payload.id)return;state.visualSettledId=state.room+':'+roll.id;const label=$('roll-result');if(label)label.textContent=roll.label+'!';};
 const initialInvite=new URLSearchParams(location.search).get('room');
 const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,selectedRollId:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,sound:localStorage.getItem('yut-muted')!=='1'};
 localStorage.setItem('yut-session',state.session);
@@ -26,7 +27,7 @@ const SIDE_COLORS=['blue','red','blue','red'];
 function render(){const g=state.game;if(!g)return;
  $('room-code').textContent=state.room;
  $('mode-caption').textContent=g.mode==='team'?'4인 팀전 · 청팀(1·3번) 대 홍팀(2·4번)':g.playerCount+'인 개인전 · 먼저 말 4개 완주';
- $('board-note').textContent='모퉁이에서는 바깥길과 지름길을 선택할 수 있습니다. 도착칸에 선 뒤 다음 결과로 완주합니다.';
+ $('board-note').textContent='모퉁이는 자동 지름길 · 도착칸에 선 뒤 다음 결과로 완주';
  const root=$('players');root.innerHTML='';
  for(let i=0;i<g.players.length;i++){
   const fin=g.pieces[i].filter(p=>p.pos==='FIN').length;
@@ -54,10 +55,10 @@ function render(){const g=state.game;if(!g)return;
  $('action-title').textContent=title;$('action-description').textContent=desc;
  $('turn-hint').textContent=g.winner!==null?'경기 종료':waiting?g.playerCount+'명을 기다리는 중...':g.players[g.turn].name+' 차례';
  $('throw').disabled=!(me&&g.phase==='roll');$('throw').textContent=me&&g.phase==='roll'?'누르고 있다가 놓아 던지기 ↗':'윷 던지기';
- $('roll-result').textContent=g.roll?g.roll.label+'!':g.winner!==null?'종료':me?'준비!':'대기';
+ $('roll-result').textContent=g.roll?(state.visualSettledId===state.room+':'+g.roll.id?g.roll.label+'!':'착지 중…'):g.winner!==null?'종료':me?'준비!':'대기';
  $('roll-result').style.color=g.roll?.bonus?'#e29a22':'#be8b2e';
  const faceView=$('face-result');if(faceView){faceView.innerHTML='';if(g.roll){const note=document.createElement('strong');const front=g.roll.bits?.filter(Boolean).length||0;note.textContent=g.roll.nak?'낙 · 판 밖에 윷이 떨어짐 · 무효':`착지 판정 · ${g.roll.label} · 앞면 ${front} / 뒷면 ${4-front}`+(g.roll.backdo?' · 표시 윷 1개':'');faceView.appendChild(note);if(!g.roll.nak){const faces=document.createElement('div');faces.className='face-dice';for(const [i,b] of g.roll.bits.entries()){const x=document.createElement('span');x.className='face-die '+(b?'flat':'round');x.textContent=b?'앞':'뒤';x.title=(i+1)+'번째 윷 · '+(b?'앞면(평평한 면)':'뒷면(둥근 면)');faces.appendChild(x);}faceView.appendChild(faces);}}}
- if(g.roll && (state.room+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.roll.id;window.__latestYutThrow={result:g.roll,power:g.lastPower};window.yut3d?.toss?.(g.roll,g.lastPower);if(g.roll.nak)playSound('nak');}
+ if(g.roll && (state.room+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.roll.id;window.__latestYutThrow={result:g.roll,power:g.lastPower};window.yut3d?.toss?.(g.roll,g.lastPower);setTimeout(()=>{if(state.room+':'+state.game?.roll?.id===state.lastThrowId&&state.visualSettledId!==state.lastThrowId){state.visualSettledId=state.lastThrowId;const out=$('roll-result');if(out)out.textContent=state.game.roll.label+'!';}},1900);if(g.roll.nak)playSound('nak');}
  const history=$('history');history.innerHTML='';for(const h of g.history.length?g.history:['첫 번째 윷을 던져보세요.']){const p=document.createElement('p');p.textContent=h;history.appendChild(p);}
  renderTokens();renderPending();renderTargets();$('win-modal').classList.toggle('hidden',g.winner===null);
  if(g.winner!==null){if(!state.winSoundFor||state.winSoundFor!==state.room+':'+g.moveNo){playSound('win');state.winSoundFor=state.room+':'+g.moveNo;}const winner=g.mode==='team'?(g.winner===0?'청팀':'홍팀'):g.players[g.winner].name;$('win-title').textContent=winner+' 승리!';$('win-subtitle').textContent=g.mode==='team'?'승리 팀의 말 8개가 모두 완주했습니다.':'말 4개를 먼저 완주했습니다.';}
@@ -104,17 +105,20 @@ function renderTargets(){
  if(!state.game||state.selected===null||!myTurn()||state.game.phase!=='move')return;
  const options=state.moves.filter(m=>m.piece===state.selected);
  const grouped=new Map();
+ const shownPaths=new Set();
  const routeNodes={outer:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,30],cut5:[1,2,3,4,5,21,22,23,24,25,15,16,17,18,19,30],cut10:[1,2,3,4,5,6,7,8,9,10,26,27,23,28,29,30],cut5fast:[1,2,3,4,5,21,22,23,28,29,30],cut10long:[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30]};
  const selectedPiece=state.game.pieces[state.player][state.selected];
  for(const option of options){
-  if(preview){
+  const previewKey=[option.route,option.to,option.steps,selectedPiece.pos].join(':');
+  if(preview&&!shownPaths.has(previewKey)){
+   shownPaths.add(previewKey);
    const nodes=routeNodes[option.route]||routeNodes.outer;
    const start=selectedPiece.pos===-1?-1:nodes.indexOf(selectedPiece.pos);
    const traveled=selectedPiece.pos===-1?[30]:[selectedPiece.pos];
    if(option.steps>0){for(let i=start+1;i<=Math.min(start+option.steps,nodes.length-1);i++)traveled.push(nodes[i]);}
    else if(option.steps<0){traveled.push(option.to===30?30:option.to);}
    if(option.to==='FIN')traveled.push(30);
-   if(traveled.length>1){const path=document.createElementNS('http://www.w3.org/2000/svg','polyline');path.setAttribute('points',traveled.filter(n=>positions[n]).map(n=>positions[n].join(',')).join(' '));path.setAttribute('fill','none');path.setAttribute('stroke',['#2a70e0','#d77c25','#2b9368','#9154cb','#b33b50'][option.rollIndex%5]);path.setAttribute('stroke-width','8');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');path.setAttribute('stroke-opacity','.75');path.setAttribute('stroke-dasharray','13 8');preview.appendChild(path);}
+   if(traveled.length>1){const path=document.createElementNS('http://www.w3.org/2000/svg','polyline');path.setAttribute('points',traveled.filter(n=>positions[n]).map(n=>positions[n].join(',')).join(' '));path.setAttribute('fill','none');path.setAttribute('stroke',['#2a70e0','#d77c25','#2b9368','#9154cb','#b33b50'][option.rollIndex%5]);path.setAttribute('stroke-width','5');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');path.setAttribute('stroke-opacity','.48');path.setAttribute('stroke-dasharray','9 9');preview.appendChild(path);}
   }
   const key=String(option.to);
   if(!grouped.has(key))grouped.set(key,[]);
