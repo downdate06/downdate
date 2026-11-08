@@ -85,7 +85,7 @@ function roll(game,player,power=50,forcedBits,forcedNak=false){
  const bits=forcedBits||Array.from({length:4},()=>Math.random()<.5?1:0);
  if(bits.length!==4||bits.some(b=>b!==0&&b!==1))throw Error('잘못된 윷 결과입니다.');
  const count=bits.reduce((a,b)=>a+b,0),steps=count===0?5:count;
- const backdo=!forcedBits&&steps===1&&bits[3]===1;
+ const backdo=steps===1&&bits[3]===1;
  const moveSteps=backdo?-1:steps;
  const result={id:++game.throwNo,steps:moveSteps,label:LABELS[moveSteps],bits:[...bits],bonus:steps>=4,backdo};
  game.roll=result;game.pending.push(result);game.lastPower=Math.max(0,Math.min(100,Number(power)||0));

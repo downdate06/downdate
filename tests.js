@@ -140,5 +140,14 @@ test('빽도는 별표가 있는 마지막 윷 하나의 뒷면으로 구분',()
  try{const r=roll(g,0,50);assert.equal(r.backdo,true);assert.equal(r.label,'빽도');assert.deepEqual(r.bits,[0,0,0,1]);}
  finally{Math.random=original;}
 });
+test('서버 물리 결과가 특별 윷 뒷면 한 개이면 빽도로 판정',()=>{
+ const g=fill(createGame('individual',2));
+ g.pieces[0][0].pos=1;
+ const outcome=roll(g,0,50,[0,0,0,1]);
+ assert.equal(outcome.label,'빽도');
+ assert.equal(outcome.steps,-1);
+ assert.equal(outcome.backdo,true);
+});
+
 console.log(tests+'개 테스트 통과');
 

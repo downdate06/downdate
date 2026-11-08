@@ -1,16 +1,17 @@
 {
   "name": "yutnori-online",
-  "version": "3.6.0",
+  "version": "3.8.0",
   "private": true,
   "description": "2~4인 개인전 실시간 윷놀이. 20초 턴 타이머, 잔액 표시, 대기실 나가기. 팀전 개발 중 잠금",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests.js && node physics-test.mjs && node throw-test.js && node integration-test.js"
+    "test": "node tests.js && node physics-test.mjs && node throw-test.js && node integration-test.js && node physics-sim-test.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "cannon-es": "^0.20.0"
   }
 }

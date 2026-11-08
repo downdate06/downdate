@@ -4,6 +4,7 @@ const auth=require('./auth');
 const PORT=Number(process.env.PORT)||3000,HOST=process.env.HOST||'0.0.0.0';
 const PUBLIC=path.join(__dirname,'public'),rooms=new Map(),clients=new Set();
 const TURN_MS=20000;
+const throwPhysics = import('./throw-physics.mjs');
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
 function response(res,code,payload){res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(payload));}
 async function body(req){let txt='';for await(const chunk of req){txt+=chunk;if(txt.length>8192)throw Error('요청이 너무 큽니다.');}return JSON.parse(txt||'{}');}
@@ -89,7 +90,23 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
  if(!countReady(r))throw Error('모든 참가자가 연결될 때까지 기다려 주세요.');
  if(Date.now()<(r.game.revealAt||0))throw Error('윷이 완전히 멈춘 뒤 움직일 수 있습니다.');
  if(r.deadline&&Date.now()>r.deadline)throw Error('제한시간이 끝났습니다.');
- if(msg.type==='roll'){roll(r.game,c.player,msg.power);r.game.revealAt=Date.now()+5000;r.deadline=r.game.revealAt+TURN_MS;broadcast(r);}
+ if(msg.type==='roll'){
+  if(r.rolling)throw Error('이미 윷을 던지는 중입니다.');
+  if(r.game.turn!==c.player||r.game.phase!=='roll')throw Error('지금은 윷을 던질 수 없습니다.');
+  r.rolling=true;
+  try{
+   const physics=await throwPhysics;
+   const simulation=physics.simulateThrow(Number(msg.power)||0);
+   // The server simulates and adjudicates. The client receives a replay, not a requested roll value.
+   const outcome=roll(r.game,c.player,msg.power,simulation.bits,simulation.nak);
+   outcome.trajectory=simulation.frames;
+   outcome.durationMs=simulation.durationMs;
+   outcome.physics=simulation.physics;
+   r.game.revealAt=Date.now()+simulation.durationMs;
+   r.deadline=r.game.revealAt+TURN_MS;
+   broadcast(r);
+  }finally{r.rolling=false;}
+ }
  else if(msg.type==='move'){
   move(r.game,c.player,Number(msg.piece),String(msg.route),Number(msg.rollIndex),msg.to);
   r.deadline=r.game.winner===null?Date.now()+TURN_MS:null;
