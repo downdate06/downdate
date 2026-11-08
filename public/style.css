@@ -25,13 +25,24 @@
 .throw-platform{padding:6px 7px;border-radius:12px;max-width:350px;margin:0 auto}
 .throw-platform-title,.throw-platform-foot{font-size:9px;letter-spacing:.4px;padding:2px 5px}
 .result-area-3d{min-height:240px;gap:5px}
-.face-result{display:flex;flex-direction:column;align-items:center;gap:5px;min-height:44px;color:#4a5362;font-size:12px}
-.face-dice{display:flex;gap:6px}
-.face-die{width:34px;height:25px;border-radius:7px;background:#e6bd80;border:2px solid #9b632b;display:grid;place-items:center;color:#583919;font-size:12px;font-weight:900;box-shadow:0 2px 3px #0002}
-.face-die.flat{background:#84512e;color:#fff2d9;border-color:#513319}
+.face-result{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:52px;color:#3f4a5d;font-size:13px;font-weight:800}
+.face-dice{display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+.face-die{width:40px;height:28px;border-radius:8px;background:#efc98e;border:2px solid #9b632b;display:grid;place-items:center;color:#583919;font-size:13px;font-weight:950;box-shadow:0 2px 4px #0002}
+.face-die.flat{background:#6a4024;color:#fff1d2;border-color:#3d2413}
 .pending-guide{display:flex;align-items:baseline;flex-wrap:wrap;gap:5px 10px;margin-top:12px}
 .pending-guide b{font-size:14px;color:#29384d}
 .pending-guide span{font-size:11px;color:#687589}
 .pending-pill{font-size:15px;min-height:39px;padding:7px 14px}
 .board-target.stack{background:#d8e9ff;border-color:#3f7bb8;color:#173f74;box-shadow:0 0 0 8px #8cbafa66}
-@media(max-width:600px){#yut-stage{height:136px}.result-area-3d{min-height:212px}.throw-platform{max-width:310px}.face-die{width:30px;height:23px}.pending-pill{font-size:14px}}
+@media(max-width:600px){#yut-stage{height:142px}.result-area-3d{min-height:220px}.throw-platform{max-width:310px}.face-die{width:34px;height:24px}.pending-pill{font-size:14px}}
+
+/* v2.4: 모든 누적 윷을 사용자가 자유 선택 */
+.board-choice-panel{background:#f8fafc;border:1px solid #e0e8f2;border-radius:12px;padding:11px 12px;margin-bottom:12px}
+.board-choice-panel .pending-guide{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;font-size:12px;color:#586779}
+.board-choice-panel .pending-guide b{color:#243b5b;font-size:14px}
+.board-choice-panel .pending-guide span{font-size:11px}
+.board-choice-panel .pending-rolls{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0 6px}
+.board-choice-panel .pending-pill{min-height:44px;border-radius:10px;font-size:16px;padding:8px 17px;background:#fff9ed;border:2px solid #dcb96e;color:#78511c}
+.board-choice-panel .pending-pill.chosen{background:#f2b847;border-color:#ad7520;color:#3e2708;box-shadow:0 0 0 3px #f4d78e}
+.selection-status{font-size:12px;line-height:1.5;font-weight:750;color:#35547d;margin:6px 0 0}
+@media(max-width:600px){.board-choice-panel .pending-pill{font-size:17px;min-height:48px;flex:1 1 auto}.board-choice-panel .pending-guide span{font-size:10px}}

@@ -5,8 +5,8 @@ const canvas=document.getElementById('yut-canvas');
 const loading=document.getElementById('yut-loading');
 if(canvas){
  try{
- const scene=new THREE.Scene();scene.background=new THREE.Color('#c08b55');
- const camera=new THREE.PerspectiveCamera(34,1,.1,100);camera.position.set(0,8.2,6.4);camera.lookAt(0,.2,0);
+ const scene=new THREE.Scene();scene.background=new THREE.Color('#b77a42');
+ const camera=new THREE.PerspectiveCamera(32,1,.1,100);camera.position.set(0,8.9,7.2);camera.lookAt(0,.18,0);
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.5;
@@ -14,23 +14,23 @@ if(canvas){
  const light=new THREE.DirectionalLight(0xffe4b4,3.1);light.position.set(-2.5,7,6);light.castShadow=true;light.shadow.mapSize.set(1024,1024);light.shadow.camera.left=-7;light.shadow.camera.right=7;light.shadow.camera.top=7;light.shadow.camera.bottom=-7;light.shadow.bias=-.0008;scene.add(light);
  const area=new THREE.PointLight(0xffd4a2,120);area.position.set(2.5,3.8,-2);scene.add(area);
  const woodMat=new THREE.MeshStandardMaterial({color:'#c48a4f',roughness:.77,metalness:0});
- const board=new THREE.Mesh(new THREE.BoxGeometry(7.4,.26,5.8),new THREE.MeshStandardMaterial({color:'#aa673a',roughness:.82}));board.position.y=-.17;board.receiveShadow=true;scene.add(board);
- const cloth=new THREE.Mesh(new THREE.BoxGeometry(6.9,.055,5.3),new THREE.MeshStandardMaterial({color:'#d7af76',roughness:1}));cloth.position.y=-.005;cloth.receiveShadow=true;scene.add(cloth);
+ const board=new THREE.Mesh(new THREE.BoxGeometry(7.0,.26,5.5),new THREE.MeshStandardMaterial({color:'#9d5f34',roughness:.82}));board.position.y=-.17;board.receiveShadow=true;scene.add(board);
+ const cloth=new THREE.Mesh(new THREE.BoxGeometry(6.45,.055,5.0),new THREE.MeshStandardMaterial({color:'#dfba84',roughness:1}));cloth.position.y=-.005;cloth.receiveShadow=true;scene.add(cloth);
  const trim=new THREE.MeshStandardMaterial({color:'#72431f',roughness:.8});
  for(const x of [-3.66,3.66]){const rail=new THREE.Mesh(new THREE.BoxGeometry(.10,.20,5.75),trim);rail.position.set(x,.055,0);rail.castShadow=true;scene.add(rail)}
  for(const z of [-2.85,2.85]){const rail=new THREE.Mesh(new THREE.BoxGeometry(7.3,.20,.10),trim);rail.position.set(0,.055,z);rail.castShadow=true;scene.add(rail)}
  // Woodgrain strips across the throwing board.
  for(let i=0;i<16;i++){const z=-2.4+i*.33;const grain=new THREE.Mesh(new THREE.PlaneGeometry(6.6,.008),new THREE.MeshBasicMaterial({color:i%3===0?'#ad804e':'#ebc594',transparent:true,opacity:.22,depthWrite:false}));grain.rotation.x=-Math.PI/2;grain.position.set(0,.028,z);scene.add(grain)}
  const world=new CANNON.World({gravity:new CANNON.Vec3(0,-21,0),allowSleep:true});world.solver.iterations=15;world.defaultContactMaterial.friction=.46;world.defaultContactMaterial.restitution=.22;
- const floor=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(3.45,.12,2.65)),position:new CANNON.Vec3(0,-.15,0)});world.addBody(floor);
+ const floor=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(3.22,.12,2.5)),position:new CANNON.Vec3(0,-.15,0)});world.addBody(floor);
  // Very low rails: a high-energy throw can still travel outside the tray.
  const skins=[{position:[-3.66,.06,0],half:[.05,.12,2.8]},{position:[3.66,.06,0],half:[.05,.12,2.8]},{position:[0,.06,-2.85],half:[3.65,.12,.05]},{position:[0,.06,2.85],half:[3.65,.12,.05]}];
  for(const wall of skins){const body=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(...wall.half)),position:new CANNON.Vec3(...wall.position)});world.addBody(body)}
- const meshMaterial=new THREE.MeshStandardMaterial({color:0xe0ad6b,roughness:.63,metalness:0});
- const faceMaterial=new THREE.MeshStandardMaterial({color:0xa66b3a,roughness:.85,side:THREE.DoubleSide});
- const sideMaterial=new THREE.MeshStandardMaterial({color:0x9e5d32,roughness:.85});
- const lineMaterial=new THREE.MeshStandardMaterial({color:0x82512d,roughness:1});
- const dotMaterial=new THREE.MeshStandardMaterial({color:0x55331f,roughness:1});
+ const meshMaterial=new THREE.MeshStandardMaterial({color:0xf0ca8a,roughness:.56,metalness:0});
+ const faceMaterial=new THREE.MeshStandardMaterial({color:0x694126,roughness:.9,side:THREE.DoubleSide});
+ const sideMaterial=new THREE.MeshStandardMaterial({color:0xa96634,roughness:.78});
+ const lineMaterial=new THREE.MeshStandardMaterial({color:0xffe8b5,roughness:.95});
+ const dotMaterial=new THREE.MeshStandardMaterial({color:0xffd98d,roughness:.95});
  const sticks=[];let impacts=0,impactTime=0;let landing=null;
  for(let i=0;i<4;i++){
   const body=new CANNON.Body({mass:.36,shape:new CANNON.Box(new CANNON.Vec3(.205,.68,.18)),linearDamping:.17,angularDamping:.22,material:new CANNON.Material('hardwood')});
@@ -38,11 +38,11 @@ if(canvas){
   body.addEventListener('collide',ev=>{const impact=Math.abs(ev.contact?.getImpactVelocityAlongNormal?.()||0);const now=performance.now();if(impact>1.7&&now-impactTime>55){impactTime=now;impacts++;if(window.yutImpact)window.yutImpact(Math.min(1,impact/13),impacts%3);}});
   const group=new THREE.Group();
   // Truncated, rounded wooden pieces: each has rounded side + flat dark back + carved stripe.
-  const core=new THREE.Mesh(new THREE.CapsuleGeometry(.192,1.0,9,16),meshMaterial);core.castShadow=true;core.receiveShadow=true;group.add(core);
-  const flat=new THREE.Mesh(new THREE.BoxGeometry(.37,1.29,.037),faceMaterial);flat.position.z=.157;flat.castShadow=true;group.add(flat);
-  const longLine=new THREE.Mesh(new THREE.BoxGeometry(.028,1.08,.007),lineMaterial);longLine.position.set(0,0,.185);group.add(longLine);
-  for(let j=-1;j<=1;j++){const notch=new THREE.Mesh(new THREE.BoxGeometry(.15,.025,.011),dotMaterial);notch.position.set(0,j*.33,.190);group.add(notch);}
-  for(const side of [-1,1]){const grain=new THREE.Mesh(new THREE.BoxGeometry(.012,1.12,.012),sideMaterial);grain.position.set(side*.132,0,-.105);group.add(grain)}
+  const core=new THREE.Mesh(new THREE.CapsuleGeometry(.185,1.0,10,18),meshMaterial);core.castShadow=true;core.receiveShadow=true;group.add(core);
+  const flat=new THREE.Mesh(new THREE.BoxGeometry(.355,1.28,.04),faceMaterial);flat.position.z=.157;flat.castShadow=true;group.add(flat);
+  const longLine=new THREE.Mesh(new THREE.BoxGeometry(.03,1.0,.009),lineMaterial);longLine.position.set(0,0,.183);group.add(longLine);
+  for(let j=-1;j<=1;j++){const notch=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.014,18),dotMaterial);notch.rotation.x=Math.PI/2;notch.position.set(0,j*.31,.188);group.add(notch);}
+  for(const side of [-1,1]){const grain=new THREE.Mesh(new THREE.BoxGeometry(.011,1.08,.012),sideMaterial);grain.position.set(side*.13,0,-.10);group.add(grain)}
   group.rotation.z=(i-1.5)*.12;scene.add(group);sticks.push({body,group});
  }
  function reset(){sticks.forEach(({body},i)=>{body.position.set((i-1.5)*.56,.72,(i%2-.5)*.42);body.velocity.set(0,0,0);body.angularVelocity.set(0,0,0);body.quaternion.setFromEuler(Math.PI/2,0,(i-1.5)*.20);body.wakeUp()});}
