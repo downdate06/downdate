@@ -1,8 +1,8 @@
 {
   "name": "yutnori-online",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "private": true,
-  "description": "2~4인 개인전 실시간 윷놀이. 팀전 개발 중 잠금. 기존 가상머니 시스템 유지",
+  "description": "2~4인 개인전 실시간 윷놀이. 20초 턴 타이머, 잔액 표시, 대기실 나가기. 팀전 개발 중 잠금",
   "scripts": {
     "start": "node server.js",
     "test": "node tests.js && node integration-test.js"

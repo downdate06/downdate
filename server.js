@@ -3,6 +3,7 @@ const {createGame,movesFor,roll,move,teamOf}=require('./game');
 const auth=require('./auth');
 const PORT=Number(process.env.PORT)||3000,HOST=process.env.HOST||'0.0.0.0';
 const PUBLIC=path.join(__dirname,'public'),rooms=new Map(),clients=new Set();
+const TURN_MS=20000;
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
 function response(res,code,payload){res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(payload));}
 async function body(req){let txt='';for await(const chunk of req){txt+=chunk;if(txt.length>8192)throw Error('요청이 너무 큽니다.');}return JSON.parse(txt||'{}');}
@@ -25,7 +26,7 @@ const server=http.createServer(async(req,res)=>{try{
  }catch(e){response(res,400,{error:e.message});}});
 function frame(data,opcode=1){const buf=Buffer.isBuffer(data)?data:Buffer.from(data);const n=buf.length;let head;if(n<126){head=Buffer.alloc(2);head[1]=n;}else if(n<65536){head=Buffer.alloc(4);head[1]=126;head.writeUInt16BE(n,2);}else{head=Buffer.alloc(10);head[1]=127;head.writeBigUInt64BE(BigInt(n),2);}head[0]=0x80|opcode;return Buffer.concat([head,buf]);}
 function send(c,obj){if(!c.socket.destroyed)try{c.socket.write(frame(JSON.stringify(obj)));}catch{}}
-function stateFor(r,c){return {type:'state',room:r.code,player:c.player,game:r.game,moves:c.player===null?[]:movesFor(r.game,c.player),stake:r.stake,started:r.started,ready:r.ready,host:0,account:auth.safe(auth.get(c.accountId))};}
+function stateFor(r,c){return {type:'state',room:r.code,player:c.player,game:r.game,moves:c.player===null?[]:movesFor(r.game,c.player),stake:r.stake,started:r.started,ready:r.ready,host:0,account:auth.safe(auth.get(c.accountId)),balances:r.accountIds.map(id=>id?auth.get(id)?.balance??null:null),deadline:r.deadline||null,serverNow:Date.now(),turnSeconds:20};}
 function broadcast(r){for(const c of clients)if(c.room===r.code)send(c,stateFor(r,c));}
 function error(c,msg){send(c,{type:'error',message:msg});}
 function cleanName(x){return String(x||'플레이어').trim().slice(0,12)||'플레이어';}
@@ -44,6 +45,7 @@ async function startIfReady(r){
    await auth.debit(ids,r.stake);
   }
   r.started=true;
+  r.deadline=Date.now()+TURN_MS;
   r.game.history.unshift(r.stake?`참가자 전원 준비 · ${r.stake.toLocaleString('ko-KR')} 머니씩 차감 · 게임 시작!`:'참가자 전원 준비 · 게임 시작!');
  }finally{r.starting=false;}
 }
@@ -56,7 +58,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
   if(![0,1000,5000,10000].includes(stake))throw Error('잘못된 게임머니 설정입니다.');
   if(stake&&!c.accountId)throw Error('가상 머니 대전은 로그인이 필요합니다.');
   const id=code(),g=createGame(mode,n);g.players[0].name=c.accountId?auth.get(c.accountId).name:cleanName(msg.name);g.players[0].connected=true;
-  const r={code:id,game:g,owners:Array.from({length:n},(_,i)=>i===0?c.session:null),accountIds:Array.from({length:n},(_,i)=>i===0?c.accountId:null),stake,started:false,starting:false,ready:Array(n).fill(false),settled:false,updated:Date.now()};rooms.set(id,r);c.room=id;c.player=0;broadcast(r);return;
+  const r={code:id,game:g,owners:Array.from({length:n},(_,i)=>i===0?c.session:null),accountIds:Array.from({length:n},(_,i)=>i===0?c.accountId:null),stake,started:false,starting:false,ready:Array(n).fill(false),settled:false,deadline:null,updated:Date.now()};rooms.set(id,r);c.room=id;c.player=0;broadcast(r);return;
  }
  if(msg.type==='join'){
   const id=String(msg.room||'').trim().toUpperCase(),r=rooms.get(id);if(!r)throw Error('방을 찾을 수 없습니다. 방 코드를 확인해 주세요.');
@@ -76,6 +78,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
   await startIfReady(r);broadcast(r);return;
  }
  if(msg.type==='leave'){
+  if(!r.started&&c.player===0){for(const guest of clients){if(guest.room===r.code&&guest!==c){guest.room=null;guest.player=null;send(guest,{type:'left',message:'방장이 나가 대기방이 종료되었습니다.'});}}rooms.delete(r.code);c.room=null;c.player=null;send(c,{type:'left'});return;}
   if(!r.started){r.owners[c.player]=null;r.accountIds[c.player]=null;r.ready[c.player]=false;r.game.players[c.player]={name:'',connected:false};}
   c.room=null;c.player=null;
   if(!r.started&&r.owners.every(x=>!x))rooms.delete(r.code);
@@ -85,12 +88,14 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
  if(!r.started)throw Error('모든 참가자가 준비한 뒤 방장이 시작해야 합니다.');
  if(!countReady(r))throw Error('모든 참가자가 연결될 때까지 기다려 주세요.');
  if(Date.now()<(r.game.revealAt||0))throw Error('윷이 완전히 멈춘 뒤 움직일 수 있습니다.');
- if(msg.type==='roll'){roll(r.game,c.player,msg.power);r.game.revealAt=Date.now()+5000;broadcast(r);}
+ if(r.deadline&&Date.now()>r.deadline)throw Error('제한시간이 끝났습니다.');
+ if(msg.type==='roll'){roll(r.game,c.player,msg.power);r.game.revealAt=Date.now()+5000;r.deadline=r.game.revealAt+TURN_MS;broadcast(r);}
  else if(msg.type==='move'){
   move(r.game,c.player,Number(msg.piece),String(msg.route),Number(msg.rollIndex),msg.to);
+  r.deadline=r.game.winner===null?Date.now()+TURN_MS:null;
   if(r.game.winner!==null&&r.stake&&!r.settled){r.settled=true;const winners=r.accountIds.filter((_,i)=>teamOf(r.game,i)===r.game.winner);await auth.settle(r.accountIds,winners,r.stake*r.game.playerCount);}broadcast(r);
  }else if(msg.type==='rematch'){
-  if(r.game.winner===null)throw Error('경기가 끝나야 재경기할 수 있습니다.');const old=r.game;r.game=createGame(old.mode,old.playerCount);r.game.players=old.players.map(p=>({...p}));r.started=false;r.starting=false;r.ready=Array(old.playerCount).fill(false);r.settled=false;broadcast(r);
+  if(r.game.winner===null)throw Error('경기가 끝나야 재경기할 수 있습니다.');const old=r.game;r.game=createGame(old.mode,old.playerCount);r.game.players=old.players.map(p=>({...p}));r.started=false;r.starting=false;r.ready=Array(old.playerCount).fill(false);r.settled=false;r.deadline=null;broadcast(r);
  }else throw Error('알 수 없는 요청입니다.');r.updated=Date.now();
  }catch(e){error(c,e.message||'요청 처리 실패');}}
 server.on('upgrade',(req,socket)=>{
@@ -110,5 +115,25 @@ server.on('upgrade',(req,socket)=>{
  function disconnect(){clients.delete(c);if(!c.room)return;const r=rooms.get(c.room);if(!r)return;const other=Array.from(clients).some(o=>o.room===c.room&&o.player===c.player&&o.session===c.session);if(!other&&c.player!==null){r.game.players[c.player].connected=false;if(!r.started)r.ready[c.player]=false;}broadcast(r);}
  socket.on('close',disconnect);socket.on('error',()=>{});
 });
+const processingTimeout=new Set();
+async function expireTurn(r){
+ if(!r.started||r.game.winner!==null||!r.deadline||Date.now()<r.deadline||Date.now()<(r.game.revealAt||0)||processingTimeout.has(r.code))return;
+ processingTimeout.add(r.code);
+ try{
+  const g=r.game,p=g.turn;
+  if(g.phase==='roll'){
+   if(g.pending.length){g.phase='move';g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 남은 윷 결과 이동 단계로 전환`);}
+   else{g.turn=(p+1)%g.playerCount;g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 차례 넘김`);}
+  }else if(g.phase==='move'){
+   const options=movesFor(g,p);
+   if(options.length){const choice=options[0];move(g,p,choice.piece,choice.route,choice.rollIndex,choice.to);g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 자동 이동 (${choice.label})`);
+    if(g.winner!==null&&r.stake&&!r.settled){r.settled=true;const winners=r.accountIds.filter((_,i)=>teamOf(g,i)===g.winner);await auth.settle(r.accountIds,winners,r.stake*g.playerCount);}
+   }else{g.pending=[];g.phase='roll';g.turn=(p+1)%g.playerCount;g.history.unshift('제한시간 초과 · 이동 불가로 차례 변경');}
+  }
+  if(g.winner!==null)r.deadline=null;else r.deadline=Date.now()+TURN_MS;
+  g.history=g.history.slice(0,14);r.updated=Date.now();broadcast(r);
+ }catch(e){console.error('Turn timeout:',e);}finally{processingTimeout.delete(r.code);}
+}
+setInterval(()=>{for(const r of rooms.values())void expireTurn(r);},200).unref();
 setInterval(()=>{const now=Date.now();for(const [id,r]of rooms)if(now-r.updated>24*60*60*1000)rooms.delete(id);},60*60*1000).unref();
 auth.init().then(()=>server.listen(PORT,HOST,()=>console.log(`윷놀이 서버: http://localhost:${PORT}`))).catch(e=>{console.error('DB initialization failed:',e);process.exit(1);});

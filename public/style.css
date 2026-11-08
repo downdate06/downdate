@@ -98,3 +98,12 @@
 .ready-actions{display:flex;gap:8px}.ready-actions .btn{white-space:nowrap}
 .modal-card #leave-end{display:block;width:100%;margin-top:12px}
 @media(max-width:680px){.ready-panel{flex-direction:column;align-items:stretch;padding:14px}.ready-actions .btn{flex:1}.ready-main strong{font-size:16px}}
+
+/* v3.3 visible player balances and authoritative turn timer */
+.player-money{margin-top:7px;font-size:12px;font-weight:850;color:#9a6a26;background:#fff7e6;padding:6px 9px;border-radius:7px;display:inline-flex;align-items:center}
+.turn-timer{background:#fff;border:1px solid #e5e7e8;border-radius:12px;margin-bottom:14px;padding:13px 17px;box-shadow:0 3px 12px #101a2810}
+.timer-top{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#3c4c61}.timer-top b{font-size:23px;font-variant-numeric:tabular-nums;color:#2266c7}
+.timer-track{height:10px;background:#e8ecf3;border-radius:12px;margin:10px 0 7px;overflow:hidden}.timer-bar{height:100%;background:#4286e4;border-radius:12px;width:100%;transition:width .12s linear}
+#timer-hint{font-size:11px;color:#748094}.turn-timer.urgent .timer-bar{background:#eb634c}.turn-timer.urgent .timer-top b{color:#ce3b35}
+.waiting-exit{display:block;margin:4px 0 14px;max-width:260px;background:#f3f5f8;color:#475875;border:1px solid #dfe4ef}
+@media(max-width:600px){.waiting-exit{max-width:unset;width:100%}.turn-timer{padding:10px 12px}.player-money{font-size:11px}}
