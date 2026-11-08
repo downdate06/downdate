@@ -1,7 +1,7 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const initialInvite=new URLSearchParams(location.search).get('room');
-const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false};
+const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,sound:localStorage.getItem('yut-muted')!=='1'};
 localStorage.setItem('yut-session',state.session);
 const positions={0:[510,510],21:[435,135],22:[360,210],23:[285,285],24:[210,360],25:[135,435],26:[135,135],27:[210,210],28:[360,360],29:[435,435]};
 for(let i=1;i<=5;i++)positions[i]=[510,510-90*i];
@@ -17,7 +17,7 @@ function board(){const svg=$('board-svg');svg.innerHTML='';const NS='http://www.
 }
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>$('toast').classList.remove('show'),3000);}
 function connStatus(online){$('connection').classList.toggle('online',online);$('connection').innerHTML='<i></i> '+(online?'서버 연결됨':'연결 중...');}
-function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];state.selected=null;closeRouteModal();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
+function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value,token:state.token});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];if(msg.account)state.account=msg.account;state.selected=null;closeRouteModal();updateAccount();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='hello'){if(msg.account){state.account=msg.account;updateAccount();}}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
 function send(msg){if(state.ws?.readyState===WebSocket.OPEN)state.ws.send(JSON.stringify(msg));else toast('서버에 연결 중입니다. 다시 시도해 주세요.');}
 function ready(){const g=state.game;return !!(g&&g.players.every(p=>p.name&&p.connected));}
 function myTurn(){return ready()&&state.game.turn===state.player&&state.game.winner===null;}
@@ -48,17 +48,17 @@ function render(){const g=state.game;if(!g)return;
  if(g.winner!==null){title='경기가 종료되었습니다';desc='다시 한 판으로 새로운 경기를 시작할 수 있습니다.';}
  else if(waiting){title=g.playerCount+'명 입장 대기';desc=g.players.filter(p=>p.name&&p.connected).length+' / '+g.playerCount+'명 접속 · 친구에게 방 코드를 알려주세요.';}
  else if(!me){title='상대방 차례';desc=g.players[g.turn].name+' 님이 플레이하고 있습니다.';}
- else if(g.phase==='roll'){title='윷을 던질 차례!';desc='파워 게이지가 움직일 때 버튼을 눌러보세요.';}
- else{title='말을 선택하세요';desc=g.roll.label+'! 노란 테두리의 말 또는 대기 중인 말을 선택하세요.';}
+ else if(g.phase==='roll'){title=g.pending.length?'윷·모 추가 던지기!':'윷을 던질 차례!';desc='버튼을 누른 채 파워를 충전하고 손을 떼면 던집니다.';}
+ else{title='말을 선택하세요';desc='쌓인 '+g.pending.length+'개의 결과 중 하나를 골라 이동하세요.';}
  $('action-title').textContent=title;$('action-description').textContent=desc;
  $('turn-hint').textContent=g.winner!==null?'경기 종료':waiting?g.playerCount+'명을 기다리는 중...':g.players[g.turn].name+' 차례';
- $('throw').disabled=!(me&&g.phase==='roll');$('throw').textContent=me&&g.phase==='roll'?'윷 던지기 ↗':'윷 던지기';
+ $('throw').disabled=!(me&&g.phase==='roll');$('throw').textContent=me&&g.phase==='roll'?'누르고 있다가 놓아 던지기 ↗':'윷 던지기';
  $('roll-result').textContent=g.roll?g.roll.label+'!':g.winner!==null?'종료':me?'준비!':'대기';
  $('roll-result').style.color=g.roll?.bonus?'#e29a22':'#be8b2e';
- const sticks=$('yut-sticks').children;for(let i=0;i<4;i++){sticks[i].classList.toggle('back',!!g.roll&&g.roll.bits[i]===1);sticks[i].textContent=!g.roll?'윷':g.roll.bits[i]?'●':'윷';}
+ const sticks=$('yut-sticks').children;for(let i=0;i<4;i++){sticks[i].classList.toggle('back',!!g.roll&&g.roll.bits[i]===1);sticks[i].querySelector('i').textContent=!g.roll?'윷':g.roll.bits[i]?'●':'윷';}
  const history=$('history');history.innerHTML='';for(const h of g.history.length?g.history:['첫 번째 윷을 던져보세요.']){const p=document.createElement('p');p.textContent=h;history.appendChild(p);}
- renderTokens();renderChoices();$('win-modal').classList.toggle('hidden',g.winner===null);
- if(g.winner!==null){const winner=g.mode==='team'?(g.winner===0?'청팀':'홍팀'):g.players[g.winner].name;$('win-title').textContent=winner+' 승리!';$('win-subtitle').textContent=g.mode==='team'?'승리 팀의 말 8개가 모두 완주했습니다.':'말 4개를 먼저 완주했습니다.';}
+ renderTokens();renderChoices();renderPending();$('win-modal').classList.toggle('hidden',g.winner===null);
+ if(g.winner!==null){if(!state.winSoundFor||state.winSoundFor!==state.room+':'+g.moveNo){playSound('win');state.winSoundFor=state.room+':'+g.moveNo;}const winner=g.mode==='team'?(g.winner===0?'청팀':'홍팀'):g.players[g.winner].name;$('win-title').textContent=winner+' 승리!';$('win-subtitle').textContent=g.mode==='team'?'승리 팀의 말 8개가 모두 완주했습니다.':'말 4개를 먼저 완주했습니다.';}
 }
 function renderTokens(){const g=state.game;const root=$('board-tokens');root.innerHTML='';const occupied=new Map();
  for(let player=0;player<g.players.length;player++)for(let i=0;i<4;i++){const pos=g.pieces[player][i].pos;if(pos===-1||pos==='FIN')continue;const key=player+':'+pos;if(!occupied.has(key))occupied.set(key,[]);occupied.get(key).push(i);}
@@ -75,15 +75,61 @@ function renderTokens(){const g=state.game;const root=$('board-tokens');root.inn
  }
 }
 function closeRouteModal(){const modal=$('route-modal');if(modal)modal.classList.add('hidden');}
-function choosePiece(index){const choices=state.moves.filter(m=>m.piece===index);if(!choices.length)return;state.selected=index;if(choices.length===1){send({type:'move',piece:index,route:choices[0].route});state.selected=null;closeRouteModal();}else renderChoices();}
-function renderChoices(){const root=$('route-modal-options');root.innerHTML='';if(state.selected===null)return;const options=state.moves.filter(m=>m.piece===state.selected);if(options.length<2){closeRouteModal();return;}const routeNames={outer:'바깥길 (모서리를 따라 이동)',cut5:'대각선 지름길 (중앙 방향)',cut10:'대각선 지름길 (중앙 방향)',cut5fast:'가까운 도착길',cut10long:'먼 도착길'};for(const option of options){const button=document.createElement('button');button.className='route-choice';button.textContent='➜ '+(routeNames[option.route]||'다른 경로')+(option.to==='FIN'?' · 완주':'');button.addEventListener('click',()=>{send({type:'move',piece:state.selected,route:option.route});state.selected=null;closeRouteModal();});root.appendChild(button);}$('route-modal').classList.remove('hidden');}
+function choosePiece(index){const options=state.moves.filter(m=>m.piece===index);if(!options.length)return;state.selected=index;playSound('select');renderChoices();}
+function renderPending(){const root=$('pending-rolls');root.innerHTML='';const g=state.game;if(!g)return;for(const [i,r] of g.pending.entries()){const el=document.createElement('span');el.className='pending-pill';el.textContent=(i+1)+' · '+r.label;root.appendChild(el);}}
+function renderChoices(){
+ const root=$('route-modal-options');root.innerHTML='';if(state.selected===null){closeRouteModal();return;}
+ const options=state.moves.filter(m=>m.piece===state.selected);if(!options.length){closeRouteModal();return;}
+ const routeNames={outer:'바깥길',cut5:'대각선 지름길',cut10:'대각선 지름길',cut5fast:'중앙 빠른길',cut10long:'중앙 바깥길'};
+ const ul=document.createElement('div');ul.className='destination-grid';
+ for(const option of options){const button=document.createElement('button');button.className='route-choice';
+  const enemies=option.to==='FIN'?0:state.game.pieces.reduce((sum,ps,owner)=>sum+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===option.to).length),0);
+  button.textContent=option.label+' ('+option.steps+'칸) → '+(option.to==='FIN'?'완주':routeNames[option.route]+' · '+(option.to===0?'출발/도착':option.to+'번 칸'))+(enemies?' 🎯 '+enemies+'개 잡기':'');
+  button.addEventListener('click',()=>confirmMove(option));ul.appendChild(button);
+ }
+ root.appendChild(ul);$('route-modal-title').textContent=(state.selected+1)+'번 말 · 도착할 칸을 선택하세요';$('route-modal').classList.remove('hidden');
+}
+function confirmMove(option){
+ const g=state.game,point=option.to==='FIN'?'완주':option.to===0?'출발/도착':option.to+'번 칸';
+ const enemies=option.to==='FIN'?0:g.pieces.reduce((n,ps,i)=>n+(i===state.player||(g.mode==='team'&&i%2===state.player%2)?0:ps.filter(p=>p.pos===option.to).length),0);
+ const yes=window.confirm(option.label+' 사용 · '+(state.selected+1)+'번 말을 '+point+'으로 이동'+(enemies?'\n상대 말 '+enemies+'개 잡기!':'')+'\n확정하시겠습니까?');
+ if(!yes)return;
+ playSound(enemies?'capture':'move');send({type:'move',piece:state.selected,rollIndex:option.rollIndex,route:option.route,to:option.to});state.selected=null;closeRouteModal();
+}
 $('route-cancel').addEventListener('click',()=>{state.selected=null;closeRouteModal();});
-let lastFrame=0;function animateGauge(t){if(t-lastFrame>30){lastFrame=t;state.phase+=.035;$('gauge-value').style.width=(8+88*(.5+.5*Math.sin(state.phase)))+'%';}state.raf=requestAnimationFrame(animateGauge);}
+let lastFrame=0;
+function animateGauge(t){if(t-lastFrame>25){lastFrame=t;const value=state.charging?Math.min(100,(t-state.chargeStart)/14):0;state.chargePower=value;$('gauge-value').style.width=value+'%';$('gauge-value').classList.toggle('charged',value>=90);}state.raf=requestAnimationFrame(animateGauge);}
+let audioContext;
+function playSound(type){if(!state.sound)return;try{
+ audioContext=audioContext||new(window.AudioContext||window.webkitAudioContext)();audioContext.resume();
+ const now=audioContext.currentTime;
+ const count=type==='roll'?5:type==='capture'?4:type==='win'?7:1;
+ for(let j=0;j<count;j++){
+ const osc=audioContext.createOscillator(),gain=audioContext.createGain(),t=now+j*(type==='roll'?.065:.09);
+ osc.type=type==='roll'||type==='capture'?'triangle':'sine';osc.frequency.setValueAtTime((type==='roll'?170:type==='capture'?390:type==='win'?480:280)+j*(type==='win'?90:28),t);
+ gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(type==='roll'?.19:.11,t+.012);gain.gain.exponentialRampToValueAtTime(.0001,t+.15);osc.connect(gain);gain.connect(audioContext.destination);osc.start(t);osc.stop(t+.16);
+ }
+ }catch{}}
+function beginCharge(e){if(!myTurn()||state.game.phase!=='roll'||state.charging)return;if(e?.cancelable)e.preventDefault();state.charging=true;state.chargeStart=performance.now();$('throw').classList.add('charging');try{if(e?.pointerId!=null)$('throw').setPointerCapture(e.pointerId);}catch{}playSound('select');}
+function endCharge(e){if(!state.charging)return;if(e?.cancelable)e.preventDefault();state.chargePower=Math.min(100,(performance.now()-state.chargeStart)/14);state.charging=false;$('throw').classList.remove('charging');if(!myTurn()||state.game.phase!=='roll')return;send({type:'roll',power:Math.round(state.chargePower)});$('yut-sticks').classList.add('throwing');playSound('roll');setTimeout(()=>$('yut-sticks').classList.remove('throwing'),850);}
+$('throw').addEventListener('pointerdown',beginCharge);$('throw').addEventListener('pointerup',endCharge);$('throw').addEventListener('pointercancel',()=>{state.charging=false;$('throw').classList.remove('charging');});
+$('throw').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat)beginCharge(e);});$('throw').addEventListener('keyup',e=>{if(e.key==='Enter'||e.key===' ')endCharge(e);});
 $('mode').addEventListener('change',()=>{const team=$('mode').value==='team';$('player-count').value=team?'4':$('player-count').value;$('player-count').disabled=team;});
-$('create').addEventListener('click',()=>{if(state.ws?.readyState!==WebSocket.OPEN)return toast('서버 연결을 확인해 주세요.');state.manualLeave=false;send({type:'create',name:$('name').value,mode:$('mode').value,playerCount:Number($('player-count').value)});});
+$('create').addEventListener('click',()=>{if(state.ws?.readyState!==WebSocket.OPEN)return toast('서버 연결을 확인해 주세요.');state.manualLeave=false;send({type:'create',name:$('name').value,mode:$('mode').value,playerCount:Number($('player-count').value),stake:Number($('stake').value)});});
 $('join').addEventListener('click',()=>{const room=$('room-input').value.trim().toUpperCase();if(room.length!==6)return toast('6자리 방 코드를 입력하세요.');state.manualLeave=false;send({type:'join',room,name:$('name').value});});$('room-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('join').click();});
-$('throw').addEventListener('click',()=>{if(!myTurn()||state.game.phase!=='roll')return;send({type:'roll',power:Math.round((8+88*(.5+.5*Math.sin(state.phase))))});$('yut-sticks').classList.add('throwing');setTimeout(()=>$('yut-sticks').classList.remove('throwing'),850);});
+
 $('copy-room').addEventListener('click',()=>{const invite=location.origin+'/?room='+encodeURIComponent(state.room);if(navigator.clipboard?.writeText){navigator.clipboard.writeText(invite).then(()=>toast('초대 링크를 복사했습니다.')).catch(()=>toast('방 코드: '+state.room));}else toast('방 코드: '+state.room);});
+async function authRequest(route,data,method='POST'){
+ const res=await fetch('/api/'+route,{method,headers:{'Content-Type':'application/json',...(state.token?{'Authorization':'Bearer '+state.token}:{})},body:method==='GET'?undefined:JSON.stringify(data||{})});const json=await res.json();if(!res.ok)throw Error(json.error||'요청 실패');return json;
+}
+function updateAccount(){const a=state.account;$('auth-form').classList.toggle('hidden',!!a);$('account-view').classList.toggle('hidden',!a);$('wallet-mini').textContent=a?'🪙 '+a.balance.toLocaleString('ko-KR')+' 머니':'';if(a){$('account-name').textContent='👤 '+a.name;$('account-balance').textContent='🪙 '+a.balance.toLocaleString('ko-KR')+' 머니';$('account-record').textContent='승리 '+a.wins+' · 패배 '+a.losses;$('name').value=a.name;$('name').disabled=true;$('refill').disabled=a.balance!==0;}else $('name').disabled=false;}
+async function doAuth(route){try{const json=await authRequest(route,{name:$('login-id').value.trim(),password:$('login-pass').value});state.token=json.token;localStorage.setItem('yut-token',json.token);state.account=json.account;updateAccount();toast(route==='login'?'로그인 성공!':'가입 완료! 10만 게임머니가 지급됐습니다.');state.ws?.close();}catch(e){toast(e.message);}}
+$('login').addEventListener('click',()=>doAuth('login'));
+$('register').addEventListener('click',()=>doAuth('register'));
+$('logout').addEventListener('click',()=>{state.token=null;state.account=null;localStorage.removeItem('yut-token');updateAccount();state.ws?.close();});
+$('refill').addEventListener('click',async()=>{try{const r=await authRequest('refill');state.account=r.account;updateAccount();toast('가상 머니 100,000원이 충전됐습니다.');}catch(e){toast(e.message);}});
+$('sound-toggle').addEventListener('click',()=>{state.sound=!state.sound;localStorage.setItem('yut-muted',state.sound?'0':'1');$('sound-toggle').textContent=state.sound?'🔊 소리 켜짐':'🔇 소리 꺼짐';if(state.sound)playSound('select');});
+if(state.token)authRequest('me',null,'GET').then(r=>{state.account=r.account;updateAccount();}).catch(()=>{state.token=null;localStorage.removeItem('yut-token');updateAccount();});
 $('rematch').addEventListener('click',()=>send({type:'rematch'}));$('leave').addEventListener('click',()=>{state.manualLeave=true;state.room=null;state.player=null;state.game=null;state.moves=[];localStorage.removeItem('yut-room');$('game').classList.add('hidden');$('win-modal').classList.add('hidden');$('lobby').classList.remove('hidden');state.ws?.close();setTimeout(()=>{state.manualLeave=false;startSocket();},150);});
 if(initialInvite&&/^[A-Z0-9]{6}$/i.test(initialInvite)){$('room-input').value=initialInvite.toUpperCase();toast('초대받은 방 코드가 입력되었습니다. 이름을 확인한 뒤 입장하세요.');}board();startSocket();state.raf=requestAnimationFrame(animateGauge);window.addEventListener('beforeunload',()=>cancelAnimationFrame(state.raf));
 })();

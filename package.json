@@ -1,13 +1,1 @@
-{
-  "name": "yutnori-live",
-  "version": "1.1.0",
-  "private": true,
-  "description": "실시간 4인 개인전 및 2대2 팀전 PC·모바일 윷놀이 웹게임",
-  "scripts": {
-    "start": "node server.js",
-    "test": "node tests.js"
-  },
-  "engines": {
-    "node": ">=18"
-  }
-}
+{"name":"yutnori-online","version":"2.0.0","private":true,"description":"2~4인 실시간 윷놀이, 누적 윷·모, 이동 선택, 가상 머니 및 계정","scripts":{"start":"node server.js","test":"node tests.js"},"engines":{"node":">=20"},"dependencies":{"pg":"^8.16.3"}}

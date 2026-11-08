@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: yutnori-live-4player
+    name: yutnori-online
     runtime: node
     plan: free
     region: singapore
