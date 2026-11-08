@@ -16,3 +16,22 @@
 
 /* v2.1: interactive board and tossing stage */
 .board-wrap{position:relative}.board-targets{position:absolute;inset:0;pointer-events:none;z-index:7}.board-target{position:absolute;transform:translate(-50%,-50%);width:clamp(43px,10vw,64px);height:clamp(43px,10vw,64px);display:grid;place-items:center;border-radius:50%;border:3px solid #f7b733;background:#ffefb9d9;color:#8b4906;font-weight:950;font-size:12px;box-shadow:0 0 0 8px #f5c24c55,0 4px 14px #6c4c294d;pointer-events:auto;cursor:pointer;animation:target-pulse 1.1s ease-in-out infinite}.board-target.capture{background:#fbd2ce;border-color:#d84934;color:#9d1f19;box-shadow:0 0 0 8px #e66e5555,0 4px 14px #6c4c294d}.board-target.finish{border-color:#219c70;background:#d8f6e9;color:#086849}@keyframes target-pulse{50%{box-shadow:0 0 0 13px #f5c24c22,0 4px 14px #6c4c294d;transform:translate(-50%,-50%) scale(1.07)}}.pending-pill{cursor:pointer}.pending-pill:disabled{opacity:.55}.pending-pill.chosen{background:#f5be50;color:#492800;border-color:#b78423;box-shadow:0 0 0 2px #f9e3aa}.result-area-3d{display:flex;flex-direction:column;min-height:340px;gap:5px}.throw-platform{width:100%;border-radius:18px;padding:9px;background:linear-gradient(135deg,#b57c42,#e9be80 48%,#a66a35);box-shadow:inset 0 2px 4px #fffa,inset 0 -3px 6px #75432088,0 10px 22px #2a170c2b}.throw-platform-title,.throw-platform-foot{display:flex;justify-content:space-between;color:#fff6e8;font-size:10px;letter-spacing:1.2px;font-weight:900;padding:4px 8px;text-shadow:0 1px 2px #50371d}.throw-platform-title span{color:#f4e5b3}#yut-stage{position:relative;height:240px;overflow:hidden;border-radius:12px;background:radial-gradient(ellipse at 50% 35%,#e9be82,#c78e51 70%,#996137);box-shadow:inset 0 7px 18px #6e431477,inset 0 -4px 12px #f8e0ab99}#yut-canvas{display:block;width:100%;height:100%;touch-action:pan-y}#yut-loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#71401e;font-size:12px;font-weight:900;pointer-events:none}.throw-platform-foot{font-weight:600;letter-spacing:.5px}.roll-result{padding:6px 0;font-size:32px;line-height:1.2}.board-foot{align-items:center;gap:12px}.home-piece.selectable,.token.selectable{outline:2px solid #e8b04b;box-shadow:0 0 0 4px #f6d99775;cursor:pointer}@media(max-width:600px){#yut-stage{height:225px}.result-area-3d{min-height:310px}.board-target{width:43px;height:43px;font-size:10px}.throw-platform{padding:7px}}
+
+/* Login usability */
+.password-field{display:flex;min-width:0;position:relative}.password-field input{width:100%;padding-right:59px}.password-field button{position:absolute;right:5px;top:50%;transform:translateY(-50%);border:0;border-radius:7px;background:#e7ebf2;color:#384760;cursor:pointer;padding:7px 9px;font-weight:700;font-size:12px}.remember-id{display:flex;align-items:center;gap:7px;font-size:13px;color:#49586c;margin-top:12px;cursor:pointer}.remember-id input{width:16px;height:16px;accent-color:#4b70d3}.storage-hint{margin:9px 0 0;font-size:11px;color:#9b6b21;line-height:1.5}.storage-hint.ready{color:#35845c}@media(max-width:600px){.password-field{width:100%}}
+
+/* v2.3: compact throw arena and legible, server-authoritative dice */
+#yut-stage{height:158px}
+.throw-platform{padding:6px 7px;border-radius:12px;max-width:350px;margin:0 auto}
+.throw-platform-title,.throw-platform-foot{font-size:9px;letter-spacing:.4px;padding:2px 5px}
+.result-area-3d{min-height:240px;gap:5px}
+.face-result{display:flex;flex-direction:column;align-items:center;gap:5px;min-height:44px;color:#4a5362;font-size:12px}
+.face-dice{display:flex;gap:6px}
+.face-die{width:34px;height:25px;border-radius:7px;background:#e6bd80;border:2px solid #9b632b;display:grid;place-items:center;color:#583919;font-size:12px;font-weight:900;box-shadow:0 2px 3px #0002}
+.face-die.flat{background:#84512e;color:#fff2d9;border-color:#513319}
+.pending-guide{display:flex;align-items:baseline;flex-wrap:wrap;gap:5px 10px;margin-top:12px}
+.pending-guide b{font-size:14px;color:#29384d}
+.pending-guide span{font-size:11px;color:#687589}
+.pending-pill{font-size:15px;min-height:39px;padding:7px 14px}
+.board-target.stack{background:#d8e9ff;border-color:#3f7bb8;color:#173f74;box-shadow:0 0 0 8px #8cbafa66}
+@media(max-width:600px){#yut-stage{height:136px}.result-area-3d{min-height:212px}.throw-platform{max-width:310px}.face-die{width:30px;height:23px}.pending-pill{font-size:14px}}

@@ -6,7 +6,7 @@ const loading=document.getElementById('yut-loading');
 if(canvas){
  try{
  const scene=new THREE.Scene();scene.background=new THREE.Color('#c08b55');
- const camera=new THREE.PerspectiveCamera(38,1,.1,100);camera.position.set(0,6.6,8.6);camera.lookAt(0,.25,0);
+ const camera=new THREE.PerspectiveCamera(34,1,.1,100);camera.position.set(0,8.2,6.4);camera.lookAt(0,.2,0);
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.5;
@@ -31,7 +31,7 @@ if(canvas){
  const sideMaterial=new THREE.MeshStandardMaterial({color:0x9e5d32,roughness:.85});
  const lineMaterial=new THREE.MeshStandardMaterial({color:0x82512d,roughness:1});
  const dotMaterial=new THREE.MeshStandardMaterial({color:0x55331f,roughness:1});
- const sticks=[];let impacts=0,impactTime=0;
+ const sticks=[];let impacts=0,impactTime=0;let landing=null;
  for(let i=0;i<4;i++){
   const body=new CANNON.Body({mass:.36,shape:new CANNON.Box(new CANNON.Vec3(.205,.68,.18)),linearDamping:.17,angularDamping:.22,material:new CANNON.Material('hardwood')});
   body.position.set((i-1.5)*.58,1.5+i*.05,(i%2-.5)*.38);world.addBody(body);
@@ -48,7 +48,7 @@ if(canvas){
  function reset(){sticks.forEach(({body},i)=>{body.position.set((i-1.5)*.56,.72,(i%2-.5)*.42);body.velocity.set(0,0,0);body.angularVelocity.set(0,0,0);body.quaternion.setFromEuler(Math.PI/2,0,(i-1.5)*.20);body.wakeUp()});}
  reset();
  let nakEffect=false;
- function toss(result,power){const force=.55+Math.min(100,Number(power)||0)/100;nakEffect=!!result?.nak;impacts=0;sticks.forEach(({body},i)=>{
+ function toss(result,power){landing={bits:Array.isArray(result?.bits)?result.bits.slice():[],nak:!!result?.nak,start:performance.now()};const force=.55+Math.min(100,Number(power)||0)/100;nakEffect=!!result?.nak;impacts=0;sticks.forEach(({body},i)=>{
   const theta=i*2.398+Math.random()*.75;
   body.position.set(Math.cos(theta)*.39,2.3+i*.22,Math.sin(theta)*.30);
   body.quaternion.setFromEuler(Math.random()*6,Math.random()*6,Math.random()*6);
@@ -57,10 +57,23 @@ if(canvas){
  });
  if(loading)loading.style.display='none';
  }
- window.yut3d={toss,reset};
+ window.yut3d={toss,reset};if(window.__latestYutThrow)window.yut3d.toss(window.__latestYutThrow.result,window.__latestYutThrow.power);
  window.yutImpact=(strength,variant)=>{if(localStorage.getItem('yut-muted')==='1')return;try{const AC=window.AudioContext||window.webkitAudioContext;const ac=window.__yutAudio||(window.__yutAudio=new AC());ac.resume();const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.type='triangle';o.frequency.setValueAtTime(170+variant*35,t);o.frequency.exponentialRampToValueAtTime(65,t+.085);g.gain.setValueAtTime(.001,t);g.gain.exponentialRampToValueAtTime(Math.min(.27,.06+strength*.15),t+.012);g.gain.exponentialRampToValueAtTime(.001,t+.14);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+.15);}catch{}};
  const resize=()=>{const w=canvas.clientWidth,h=canvas.clientHeight;if(w&&h){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}};window.addEventListener('resize',resize);resize();
  let last=performance.now();const quaternion=(mesh,body)=>{mesh.position.set(body.position.x,body.position.y,body.position.z);mesh.quaternion.set(body.quaternion.x,body.quaternion.y,body.quaternion.z,body.quaternion.w)};
- const frame=()=>{requestAnimationFrame(frame);const now=performance.now(),dt=Math.min(.045,(now-last)/1000);last=now;world.step(1/60,dt,3);sticks.forEach(({group,body})=>{quaternion(group,body);if(body.position.y < -3){body.velocity.set(0,0,0);body.angularVelocity.set(0,0,0);body.position.y=-7;}});renderer.render(scene,camera)};frame();if(loading)loading.style.display='none';
+ const frame=()=>{requestAnimationFrame(frame);const now=performance.now(),dt=Math.min(.045,(now-last)/1000);last=now;world.step(1/60,dt,3);sticks.forEach(({group,body},i)=>{
+  quaternion(group,body);
+  if(landing&&!landing.nak&&landing.bits.length===4){
+   const elapsed=(now-landing.start)/1000;
+   if(elapsed>1.05){
+    const t=Math.min(1,(elapsed-1.05)/.65),ease=t*t*(3-2*t);
+    const destination=new THREE.Vector3((i-1.5)*1.25,.37,(i%2-.5)*.75);
+    const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(landing.bits[i]?-Math.PI/2:Math.PI/2,(i-1.5)*.13,(i-1.5)*.12,'YXZ'));
+    group.position.lerp(destination,ease);
+    group.quaternion.slerp(q,ease);
+    if(t>=1){group.position.copy(destination);group.quaternion.copy(q);body.sleep();}
+   }
+  }else if(body.position.y< -3){body.velocity.set(0,0,0);body.angularVelocity.set(0,0,0);body.position.y=-7;}
+ });renderer.render(scene,camera)};frame();if(loading)loading.style.display='none';
  }catch(err){console.error('3D yut setup:',err);if(loading)loading.textContent='3D 모델 준비 중 오류가 발생했습니다.';}
 }

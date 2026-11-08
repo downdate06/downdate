@@ -72,9 +72,9 @@ function move(game,player,pieceIndex,route,rollIndex=0,target){
  game.history=game.history.slice(0,14);
  const side=teamOf(game,player),sidePlayers=game.players.map((_,i)=>i).filter(i=>teamOf(game,i)===side);
  if(sidePlayers.every(i=>game.pieces[i].every(p=>p.pos==='FIN'))){game.winner=side;game.phase='ended';game.roll=null;game.pending=[];game.history.unshift(`🏆 ${game.mode==='team'?(side===0?'청팀':'홍팀'):game.players[player].name} 승리!`);}
- else if(captured){game.phase='roll';game.roll=null;}
- else if(game.pending.length){game.phase='move';game.roll=game.pending[0];}
- else{game.phase='roll';game.roll=null;game.turn=(player+1)%game.players.length;}
+ else if(captured){game.phase='roll';}
+ else if(game.pending.length){game.phase='move';}
+ else{game.phase='roll';game.turn=(player+1)%game.players.length;}
  return {captured,moved:moved.length,choice};
 }
 module.exports={createGame,teamOf,sameSide,optionsFor,movesFor,roll,move,PATHS};

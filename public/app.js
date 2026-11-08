@@ -49,13 +49,14 @@ function render(){const g=state.game;if(!g)return;
  else if(waiting){title=g.playerCount+'명 입장 대기';desc=g.players.filter(p=>p.name&&p.connected).length+' / '+g.playerCount+'명 접속 · 친구에게 방 코드를 알려주세요.';}
  else if(!me){title='상대방 차례';desc=g.players[g.turn].name+' 님이 플레이하고 있습니다.';}
  else if(g.phase==='roll'){title=g.pending.length?'윷·모 추가 던지기!':'윷을 던질 차례!';desc='버튼을 누른 채 파워를 충전하고 손을 떼면 던집니다.';}
- else{title=state.selected===null?'말을 선택하세요':'윷놀이판의 빛나는 칸을 터치하세요';desc=state.selected===null?'말을 고른 뒤 사용할 윷 결과와 판 위 목적지를 선택하세요.':'사용할 결과를 고르면 이동할 수 있는 칸이 판에 표시됩니다.';}
+ else{title=state.selected===null?'말을 선택하세요 · 결과 '+g.pending.length+'개 보유':'윷놀이판의 빛나는 칸을 터치하세요';desc=state.selected===null?'말을 고른 뒤 사용할 윷 결과와 판 위 목적지를 선택하세요.':'사용할 결과를 고르면 이동할 수 있는 칸이 판에 표시됩니다.';}
  $('action-title').textContent=title;$('action-description').textContent=desc;
  $('turn-hint').textContent=g.winner!==null?'경기 종료':waiting?g.playerCount+'명을 기다리는 중...':g.players[g.turn].name+' 차례';
  $('throw').disabled=!(me&&g.phase==='roll');$('throw').textContent=me&&g.phase==='roll'?'누르고 있다가 놓아 던지기 ↗':'윷 던지기';
  $('roll-result').textContent=g.roll?g.roll.label+'!':g.winner!==null?'종료':me?'준비!':'대기';
  $('roll-result').style.color=g.roll?.bonus?'#e29a22':'#be8b2e';
- if(g.roll && (state.room+':'+g.moveNo+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.moveNo+':'+g.roll.id;window.yut3d?.toss?.(g.roll,g.lastPower);if(g.roll.nak)playSound('nak');}
+ const faceView=$('face-result');if(faceView){faceView.innerHTML='';if(g.roll){const note=document.createElement('strong');note.textContent=g.roll.nak?'낙 · 이번 투척은 무효':'착지 판정 · '+g.roll.label;faceView.appendChild(note);if(!g.roll.nak){const faces=document.createElement('div');faces.className='face-dice';for(const [i,b] of g.roll.bits.entries()){const x=document.createElement('span');x.className='face-die '+(b?'flat':'round');x.textContent=b?'평':'등';x.title=(i+1)+'번째 윷 · '+(b?'평평한 면':'둥근 면');faces.appendChild(x);}faceView.appendChild(faces);}}}
+ if(g.roll && (state.room+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.roll.id;window.__latestYutThrow={result:g.roll,power:g.lastPower};window.yut3d?.toss?.(g.roll,g.lastPower);if(g.roll.nak)playSound('nak');}
  const history=$('history');history.innerHTML='';for(const h of g.history.length?g.history:['첫 번째 윷을 던져보세요.']){const p=document.createElement('p');p.textContent=h;history.appendChild(p);}
  renderTokens();renderPending();renderTargets();$('win-modal').classList.toggle('hidden',g.winner===null);
  if(g.winner!==null){if(!state.winSoundFor||state.winSoundFor!==state.room+':'+g.moveNo){playSound('win');state.winSoundFor=state.room+':'+g.moveNo;}const winner=g.mode==='team'?(g.winner===0?'청팀':'홍팀'):g.players[g.winner].name;$('win-title').textContent=winner+' 승리!';$('win-subtitle').textContent=g.mode==='team'?'승리 팀의 말 8개가 모두 완주했습니다.':'말 4개를 먼저 완주했습니다.';}
@@ -84,7 +85,7 @@ function choosePiece(index){
  document.getElementById('board').scrollIntoView({behavior:'smooth',block:'center'});
 }
 function renderPending(){
- const root=$('pending-rolls');root.innerHTML='';const g=state.game;if(!g)return;
+ const root=$('pending-rolls');root.innerHTML='';const g=state.game;if(!g)return;const help=$('pending-help');if(help){help.textContent=g.pending.length?'남은 결과 '+g.pending.length+'개 · 원하는 결과를 골라 이동하세요. 잡으면 추가 투척합니다.':'던진 결과가 여기에 쌓입니다.';}
  for(const [i,r] of g.pending.entries()){
   const el=document.createElement('button');el.type='button';
   el.className='pending-pill'+(state.selectedRoll===i?' chosen':'');
@@ -95,14 +96,14 @@ function renderPending(){
 }
 function renderTargets(){
  const root=$('board-targets');if(!root)return;root.innerHTML='';
- if(!state.game||state.selected===null)return;
+ if(!state.game||state.selected===null||!myTurn()||state.game.phase!=='move')return;
  const options=state.moves.filter(m=>m.piece===state.selected&&m.rollIndex===state.selectedRoll);
  for(const option of options){
   const point=positions[option.to==='FIN'?0:option.to];if(!point)continue;
   const enemies=option.to==='FIN'?0:state.game.pieces.reduce((count,ps,owner)=>count+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===option.to).length),0);
   const target=document.createElement('button');target.type='button';target.className='board-target'+(enemies?' capture':'')+(option.to==='FIN'?' finish':'');
   target.style.left=(point[0]/570*100)+'%';target.style.top=(point[1]/570*100)+'%';
-  target.innerHTML='<span>'+ (option.to==='FIN'?'완주':enemies?'잡기':'여기')+'</span>';
+  const allies=option.to==='FIN'?0:state.game.pieces[state.player].filter(p=>p.pos===option.to).length;target.classList.toggle('stack',allies>0);target.innerHTML='<span>'+ (option.to==='FIN'?'완주':enemies?'잡기':allies?'업기':'이동')+'</span>';target.title=option.label+' → '+(option.to==='FIN'?'완주':option.to+'번 칸')+(allies?' (업기)':'')+(enemies?' (잡고 다시 던지기)':'');
   target.setAttribute('aria-label',option.label+' 결과로 '+(option.to==='FIN'?'완주':option.to+'번 칸')+' 이동');
   target.addEventListener('click',()=>{playSound(enemies?'capture':'move');send({type:'move',piece:state.selected,rollIndex:option.rollIndex,route:option.route,to:option.to});state.selected=null;root.innerHTML='';});
   root.appendChild(target);
@@ -134,7 +135,12 @@ async function authRequest(route,data,method='POST'){
  const res=await fetch('/api/'+route,{method,headers:{'Content-Type':'application/json',...(state.token?{'Authorization':'Bearer '+state.token}:{})},body:method==='GET'?undefined:JSON.stringify(data||{})});const json=await res.json();if(!res.ok)throw Error(json.error||'요청 실패');return json;
 }
 function updateAccount(){const a=state.account;$('auth-form').classList.toggle('hidden',!!a);$('account-view').classList.toggle('hidden',!a);$('wallet-mini').textContent=a?'🪙 '+a.balance.toLocaleString('ko-KR')+' 머니':'';if(a){$('account-name').textContent='👤 '+a.name;$('account-balance').textContent='🪙 '+a.balance.toLocaleString('ko-KR')+' 머니';$('account-record').textContent='승리 '+a.wins+' · 패배 '+a.losses;$('name').value=a.name;$('name').disabled=true;$('refill').disabled=a.balance!==0;}else $('name').disabled=false;}
-async function doAuth(route){try{const json=await authRequest(route,{name:$('login-id').value.trim(),password:$('login-pass').value});state.token=json.token;localStorage.setItem('yut-token',json.token);state.account=json.account;updateAccount();toast(route==='login'?'로그인 성공!':'가입 완료! 10만 게임머니가 지급됐습니다.');state.ws?.close();}catch(e){toast(e.message);}}
+async function doAuth(route){try{const json=await authRequest(route,{name:$('login-id').value.trim(),password:$('login-pass').value});state.token=json.token;localStorage.setItem('yut-token',json.token);if($('remember-id').checked){localStorage.setItem('yut-remember-id',$('login-id').value.trim());}else{localStorage.removeItem('yut-remember-id');}state.account=json.account;updateAccount();toast(route==='login'?'로그인 성공!':'가입 완료! 10만 게임머니가 지급됐습니다.');state.ws?.close();}catch(e){toast(e.message);}}
+const savedLoginId=localStorage.getItem('yut-remember-id');
+if(savedLoginId){$('login-id').value=savedLoginId;$('remember-id').checked=true;}
+$('remember-id').addEventListener('change',()=>{if(!$('remember-id').checked)localStorage.removeItem('yut-remember-id');});
+$('toggle-password').addEventListener('click',()=>{const showing=$('login-pass').type==='password';$('login-pass').type=showing?'text':'password';$('toggle-password').textContent=showing?'숨기기':'보기';$('toggle-password').setAttribute('aria-label',showing?'비밀번호 숨기기':'비밀번호 보기');$('toggle-password').setAttribute('aria-pressed',String(showing));});
+fetch('/health',{cache:'no-store'}).then(r=>r.json()).then(x=>{const hint=$('storage-hint');if(x.accountsPersistent){hint.textContent='✓ 회원정보·게임머니 영구 저장 데이터베이스 연결됨';hint.classList.add('ready');}else{hint.textContent='⚠ 현재는 임시 저장 중입니다. 서버 업데이트 시 회원정보가 초기화될 수 있습니다. Render에 DATABASE_URL을 연결하세요.';}}).catch(()=>{});
 $('login').addEventListener('click',()=>doAuth('login'));
 $('register').addEventListener('click',()=>doAuth('register'));
 $('logout').addEventListener('click',()=>{state.token=null;state.account=null;localStorage.removeItem('yut-token');updateAccount();state.ws?.close();});

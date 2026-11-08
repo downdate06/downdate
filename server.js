@@ -8,7 +8,7 @@ function response(res,code,payload){res.writeHead(code,{'Content-Type':'applicat
 async function body(req){let txt='';for await(const chunk of req){txt+=chunk;if(txt.length>8192)throw Error('요청이 너무 큽니다.');}return JSON.parse(txt||'{}');}
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost'),pathname=decodeURIComponent(url.pathname);
- if(pathname==='/health')return response(res,200,{ok:true,rooms:rooms.size});
+ if(pathname==='/health')return response(res,200,{ok:true,rooms:rooms.size,accountsPersistent:auth.isPersistent()});
  if(pathname.startsWith('/api/')){
   if(req.method==='POST'&&pathname==='/api/register')return response(res,200,await auth.register(...((x)=>[x.name,x.password])(await body(req))));
   if(req.method==='POST'&&pathname==='/api/login')return response(res,200,await auth.login(...((x)=>[x.name,x.password])(await body(req))));

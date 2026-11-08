@@ -16,4 +16,32 @@ test('파워 게이지는 결과 조작하지 않음',()=>{const g=fill(createGa
 test('승리 판정',()=>{const g=fill(createGame('individual',2));for(const p of g.pieces[0]){p.pos='FIN';}g.pieces[0][0].pos=19;roll(g,0,45,[1,0,0,0]);move(g,0,0,'outer',0,'FIN');assert.equal(g.winner,0);});
 test('낙 시 결과 누적 없이 차례 변경',()=>{const g=fill(createGame('individual',2));roll(g,0,50,undefined,true);assert.equal(g.turn,1);assert.equal(g.roll.label,'낙');assert.equal(g.pending.length,0);});
 test('윷 추가 던지기의 낙은 이전 윷 결과 유지',()=>{const g=fill(createGame('individual',2));roll(g,0,50,[1,1,1,1]);roll(g,0,50,undefined,true);assert.equal(g.turn,0);assert.equal(g.phase,'move');assert.equal(g.pending.length,1);});
+
+test('모·도 누적 후 도로 기존 내 말 업고 남은 모로 함께 이동',()=>{
+ const g=fill(createGame('individual',2));g.pieces[0][0].pos=1;
+ roll(g,0,50,[0,0,0,0]);roll(g,0,50,[1,0,0,0]);
+ assert.deepEqual(g.pending.map(r=>r.steps),[5,1]);
+ const up=move(g,0,1,'outer',1,1);assert.equal(up.captured,0);
+ assert.equal(g.pieces[0][0].pos,1);assert.equal(g.pieces[0][1].pos,1);
+ assert.equal(g.pending.length,1);
+ const far=move(g,0,0,'outer',0,6);
+ assert.equal(far.moved,2);assert.equal(g.pieces[0][0].pos,6);assert.equal(g.pieces[0][1].pos,6);
+});
+test('모·도 누적 후 도로 잡으면 추가 던지고 남은 모든 결과 유지',()=>{
+ const g=fill(createGame('individual',2));g.pieces[1][0].pos=1;
+ roll(g,0,50,[0,0,0,0]);roll(g,0,50,[1,0,0,0]);
+ const capture=move(g,0,0,'outer',1,1);assert.equal(capture.captured,1);
+ assert.equal(g.pending.length,1);assert.equal(g.pending[0].steps,5);assert.equal(g.phase,'roll');
+ roll(g,0,50,[1,1,0,0]);assert.equal(g.pending.length,2);
+ assert.deepEqual(g.pending.map(r=>r.steps),[5,2]);
+ assert.equal(g.phase,'move');
+ const advance=move(g,0,0,'outer',0,6);
+ assert.equal(advance.choice.steps,5);assert.equal(g.pending.length,1);assert.equal(g.pending[0].steps,2);
+});
+test('말 이동은 새로운 투척으로 기록되지 않음',()=>{
+ const g=fill(createGame('individual',2));roll(g,0,50,[0,0,0,0]);roll(g,0,50,[1,0,0,0]);
+ const count=g.throwNo,id=g.roll.id;move(g,0,0,'outer',1,1);
+ assert.equal(g.throwNo,count);assert.equal(g.roll.id,id);
+});
+
 console.log(tests+'개 테스트 통과');
