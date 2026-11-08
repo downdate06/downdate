@@ -10,3 +10,5 @@
 .team-dot.violet,.token.violet{background:var(--violet)}
 @media(max-width:800px){.players-grid{grid-column:1/-1;grid-row:1}.action-card{grid-row:2}.history-card{grid-row:3}}
 @media(max-width:420px){.players-grid .player-card{padding:9px}.players-grid .player-heading{font-size:11px}.players-grid .home-pieces{gap:3px}.players-grid .home-piece{padding:5px 6px}.players-grid .player-status{margin-left:0}}
+
+.route-modal-card{max-width:410px;padding:30px 22px}.route-modal-card h2{font-size:23px;margin:12px 0 7px}.route-modal-card p{margin:0 0 20px}.route-modal-options{display:grid;gap:12px}.route-modal-options .route-choice{width:100%;padding:17px 15px;text-align:center;font-size:15px;border:2px solid #b7c9f3;background:#f0f5ff;border-radius:12px}.route-cancel{margin-top:18px;padding:9px 16px;border:0;background:transparent;color:#66738a;text-decoration:underline}.route-modal-card .eyebrow{color:#be8b2e}@media(max-width:800px){.route-modal-card{width:min(92vw,410px)}}
