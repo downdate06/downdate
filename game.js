@@ -4,7 +4,7 @@ const CUT10=[1,2,3,4,5,6,7,8,9,10,26,27,23,28,29,30,'FIN'];
 const CUT5FAST=[1,2,3,4,5,21,22,23,28,29,30,'FIN'];
 const CUT10LONG=[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30,'FIN'];
 const PATHS={outer:OUTER,cut5:CUT5,cut10:CUT10,cut5fast:CUT5FAST,cut10long:CUT10LONG};
-const LABELS={1:'도',2:'개',3:'걸',4:'윷',5:'모'};
+const LABELS={1:'도',2:'개',3:'걸',4:'윷',5:'모','-1':'빽도'};
 
 function createGame(mode='individual',playerCount=4){
  if(!['individual','team'].includes(mode))throw Error('잘못된 경기 방식입니다.');
@@ -15,15 +15,23 @@ function teamOf(game,player){return game.mode==='team'?player%2:player;}
 function sameSide(game,a,b){return teamOf(game,a)===teamOf(game,b);}
 
 function routesFor(piece){
- if(piece.pos===5&&piece.route==='outer')return ['cut5'];
- if(piece.pos===10&&piece.route==='outer')return ['cut10'];
- if(piece.pos===23&&piece.route==='cut5')return ['cut5fast'];
- if(piece.pos===23&&piece.route==='cut10')return ['cut10long'];
+ if(piece.pos===5&&piece.route==='outer')return ['outer','cut5'];
+ if(piece.pos===10&&piece.route==='outer')return ['outer','cut10'];
+ if(piece.pos===23&&piece.route==='cut5')return ['cut5','cut5fast'];
+ if(piece.pos===23&&piece.route==='cut10')return ['cut10','cut10long'];
  return [piece.route];
 }
 
 function optionTo(route,piece,steps){
  if(piece.pos==='FIN')return null;
+ if(steps===-1){
+  if(piece.pos===-1)return null;
+  if(piece.pos===30)return {route,to:PATHS[route][PATHS[route].length-3],branch:false};
+  const path=PATHS[route];
+  const at=path.indexOf(piece.pos);
+  if(at<0)return null;
+  return {route,to:at===0?30:path[at-1],branch:false};
+ }
  if(piece.pos===30)return {route,to:'FIN',branch:false};
  const path=PATHS[route];
  const at=piece.pos===-1?-1:path.indexOf(piece.pos);
@@ -35,7 +43,7 @@ function optionTo(route,piece,steps){
 }
 
 function optionsFor(piece,steps){
- if(piece.pos==='FIN' || steps<=0)return [];
+ if(piece.pos==='FIN' || steps===0)return [];
  const results=[];
  for(const route of routesFor(piece)){
   const option=optionTo(route,piece,steps);
@@ -75,9 +83,12 @@ function roll(game,player,power=50,forcedBits,forcedNak=false){
  const bits=forcedBits||Array.from({length:4},()=>Math.random()<.5?1:0);
  if(bits.length!==4||bits.some(b=>b!==0&&b!==1))throw Error('잘못된 윷 결과입니다.');
  const count=bits.reduce((a,b)=>a+b,0),steps=count===0?5:count;
- const result={id:++game.throwNo,steps,label:LABELS[steps],bits:[...bits],bonus:steps>=4};
+ const backdo=!forcedBits&&steps===1&&bits[0]===1;
+ const moveSteps=backdo?-1:steps;
+ const result={id:++game.throwNo,steps:moveSteps,label:LABELS[moveSteps],bits:[...bits],bonus:steps>=4,backdo};
  game.roll=result;game.pending.push(result);game.lastPower=Math.max(0,Math.min(100,Number(power)||0));
  game.phase=result.bonus?'roll':'move';
+ if(game.phase==='move'&&!movesFor(game,player).length){game.pending=[];game.turn=(player+1)%game.players.length;game.phase='roll';}
  game.history.unshift(`${game.players[player].name} · ${result.label}!${result.bonus?' 추가 던지기!':''}`);
  game.history=game.history.slice(0,14);
  return result;

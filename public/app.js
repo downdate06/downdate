@@ -26,7 +26,7 @@ const SIDE_COLORS=['blue','red','blue','red'];
 function render(){const g=state.game;if(!g)return;
  $('room-code').textContent=state.room;
  $('mode-caption').textContent=g.mode==='team'?'4인 팀전 · 청팀(1·3번) 대 홍팀(2·4번)':g.playerCount+'인 개인전 · 먼저 말 4개 완주';
- $('board-note').textContent='모퉁이에서는 지름길이 강제되며, 도착칸(우하단)에 먼저 선 뒤 다음 결과로 완주합니다.';
+ $('board-note').textContent='모퉁이에서는 바깥길과 지름길을 선택할 수 있습니다. 도착칸에 선 뒤 다음 결과로 완주합니다.';
  const root=$('players');root.innerHTML='';
  for(let i=0;i<g.players.length;i++){
   const fin=g.pieces[i].filter(p=>p.pos==='FIN').length;
@@ -50,13 +50,13 @@ function render(){const g=state.game;if(!g)return;
  else if(waiting){title=g.playerCount+'명 입장 대기';desc=g.players.filter(p=>p.name&&p.connected).length+' / '+g.playerCount+'명 접속 · 친구에게 방 코드를 알려주세요.';}
  else if(!me){title='상대방 차례';desc=g.players[g.turn].name+' 님이 플레이하고 있습니다.';}
  else if(g.phase==='roll'){title=g.pending.length?'윷·모 추가 던지기!':'윷을 던질 차례!';desc='버튼을 누른 채 파워를 충전하고 손을 떼면 던집니다.';}
- else{title='원하는 순서로 이동하세요 · 결과 '+g.pending.length+'개';desc=state.selectedRollId===null?'모·윷·도 중 먼저 쓸 결과를 선택하세요.':state.selected===null?'기존 말 또는 대기 중인 새 말을 선택하세요.':'빛나는 도착 칸을 터치하세요. 결과와 말은 다시 바꿀 수 있습니다.';}
+ else{title='말을 선택해 이동하세요 · 결과 '+g.pending.length+'개';desc=state.selected===null?'기존 말 또는 대기 중인 새 말을 먼저 선택하세요.':'게임판에 표시된 결과별 도착 칸을 직접 누르세요. 다른 말을 다시 선택할 수도 있습니다.';}
  $('action-title').textContent=title;$('action-description').textContent=desc;
  $('turn-hint').textContent=g.winner!==null?'경기 종료':waiting?g.playerCount+'명을 기다리는 중...':g.players[g.turn].name+' 차례';
  $('throw').disabled=!(me&&g.phase==='roll');$('throw').textContent=me&&g.phase==='roll'?'누르고 있다가 놓아 던지기 ↗':'윷 던지기';
  $('roll-result').textContent=g.roll?g.roll.label+'!':g.winner!==null?'종료':me?'준비!':'대기';
  $('roll-result').style.color=g.roll?.bonus?'#e29a22':'#be8b2e';
- const faceView=$('face-result');if(faceView){faceView.innerHTML='';if(g.roll){const note=document.createElement('strong');const front=g.roll.bits?.filter(Boolean).length||0;note.textContent=g.roll.nak?'낙 · 이번 투척은 무효':`착지 판정 · ${g.roll.label} · 앞면 ${front} / 뒷면 ${4-front}`;faceView.appendChild(note);if(!g.roll.nak){const faces=document.createElement('div');faces.className='face-dice';for(const [i,b] of g.roll.bits.entries()){const x=document.createElement('span');x.className='face-die '+(b?'flat':'round');x.textContent=b?'앞':'뒤';x.title=(i+1)+'번째 윷 · '+(b?'앞면(평평한 면)':'뒷면(둥근 면)');faces.appendChild(x);}faceView.appendChild(faces);}}}
+ const faceView=$('face-result');if(faceView){faceView.innerHTML='';if(g.roll){const note=document.createElement('strong');const front=g.roll.bits?.filter(Boolean).length||0;note.textContent=g.roll.nak?'낙 · 판 밖에 윷이 떨어짐 · 무효':`착지 판정 · ${g.roll.label} · 앞면 ${front} / 뒷면 ${4-front}`+(g.roll.backdo?' · 표시 윷 1개':'');faceView.appendChild(note);if(!g.roll.nak){const faces=document.createElement('div');faces.className='face-dice';for(const [i,b] of g.roll.bits.entries()){const x=document.createElement('span');x.className='face-die '+(b?'flat':'round');x.textContent=b?'앞':'뒤';x.title=(i+1)+'번째 윷 · '+(b?'앞면(평평한 면)':'뒷면(둥근 면)');faces.appendChild(x);}faceView.appendChild(faces);}}}
  if(g.roll && (state.room+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.roll.id;window.__latestYutThrow={result:g.roll,power:g.lastPower};window.yut3d?.toss?.(g.roll,g.lastPower);if(g.roll.nak)playSound('nak');}
  const history=$('history');history.innerHTML='';for(const h of g.history.length?g.history:['첫 번째 윷을 던져보세요.']){const p=document.createElement('p');p.textContent=h;history.appendChild(p);}
  renderTokens();renderPending();renderTargets();$('win-modal').classList.toggle('hidden',g.winner===null);
@@ -87,43 +87,60 @@ function choosePiece(index){
 function renderPending(){
  const root=$('pending-rolls');root.innerHTML='';const g=state.game;if(!g)return;
  const help=$('pending-help');
- if(help)help.textContent=g.pending.length?'원하는 결과를 먼저 누르세요. 결과마다 기존 말·새 말을 자유롭게 선택할 수 있습니다. 모퉁이는 자동 지름길입니다.':'추가로 던진 결과가 이곳에 쌓입니다.';
- const usable=myTurn()&&g.phase==='move';
- for(const [i,r] of g.pending.entries()){
-  const el=document.createElement('button');el.type='button';
-  const chosen=state.selectedRollId===r.id;
-  el.className='pending-pill'+(chosen?' chosen':'');
-  el.textContent=r.label+' · '+r.steps+'칸'+(chosen?' ✓':'');
-  el.title=`${r.label} (${r.steps}칸) · 던진 순서 ${i+1}번`;
-  el.setAttribute('aria-pressed',String(chosen));
-  el.disabled=!usable;
-  el.addEventListener('click',()=>{state.selectedRollId=r.id;playSound('select');renderPending();renderTargets();});
+ if(help)help.textContent=g.pending.length?'원하는 말을 먼저 누르세요. 게임판에 모든 가능한 이동이 나타납니다.':'던진 결과가 여기에 쌓입니다.';
+ for(const r of g.pending){
+  const el=document.createElement('span');el.className='pending-pill pending-info';
+  el.textContent=r.label+' · '+(r.steps>0?r.steps+'칸':r.steps<0?'뒤로 1칸':'무효');
+  el.title='말을 먼저 선택하면 이 결과로 갈 수 있는 칸이 표시됩니다.';
   root.appendChild(el);
  }
- const label=$('selection-status');if(label){const result=g.pending.find(r=>r.id===state.selectedRollId);label.textContent=!usable?'윷 던지기 완료 후 결과를 선택하세요':!result?'① 사용할 윷 결과 선택 → ② 말 선택 → ③ 게임판의 빛나는 칸 터치':state.selected===null?`✓ ${result.label} 선택 · 이제 새 말 또는 판 위 기존 말을 선택하세요`:`✓ ${result.label} · ${state.selected+1}번 말 선택 · 게임판의 빛나는 칸을 터치하세요`;}
+ const label=$('selection-status');if(label){
+  label.textContent=g.phase!=='move'?'윷 던지기가 끝나면 이동할 말을 먼저 선택하세요.':state.selected===null?'① 내 말 선택 → ② 맵에 표시되는 윷 결과별 도착 칸 터치':`✓ ${state.selected+1}번 말 선택 · 원하는 도착 칸과 결과를 터치하세요`;
+ }
 }
-
 function renderTargets(){
  const root=$('board-targets');if(!root)return;root.innerHTML='';
+ const preview=$('board-preview');if(preview)preview.innerHTML='';
  if(!state.game||state.selected===null||!myTurn()||state.game.phase!=='move')return;
- const rollIndex=state.game.pending.findIndex(r=>r.id===state.selectedRollId);if(rollIndex<0)return;
- const options=state.moves.filter(m=>m.piece===state.selected&&m.rollIndex===rollIndex);
+ const options=state.moves.filter(m=>m.piece===state.selected);
+ const grouped=new Map();
+ const routeNodes={outer:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,30],cut5:[1,2,3,4,5,21,22,23,24,25,15,16,17,18,19,30],cut10:[1,2,3,4,5,6,7,8,9,10,26,27,23,28,29,30],cut5fast:[1,2,3,4,5,21,22,23,28,29,30],cut10long:[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30]};
+ const selectedPiece=state.game.pieces[state.player][state.selected];
  for(const option of options){
-  const point=positions[option.to==='FIN'?30:option.to];if(!point)continue;
-  const enemies=option.to==='FIN'?0:state.game.pieces.reduce((count,ps,owner)=>count+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===option.to).length),0);
-  const target=document.createElement('button');target.type='button';target.className='board-target'+(enemies?' capture':'')+(option.to==='FIN'?' finish':'');
-  target.style.left=(point[0]/570*100)+'%';target.style.top=(point[1]/570*100)+'%';
-  const allies=option.to==='FIN'?0:state.game.pieces[state.player].filter(p=>p.pos===option.to).length;
-  const isGoal=option.to===30;
-  const actionText=option.to==='FIN'?'완주':enemies?'잡기':allies?'업기':isGoal?'도착':'이동';
-  target.classList.toggle('stack',allies>0);
-  target.innerHTML='<span>'+actionText+'</span>';
-  const placeText=option.to==='FIN'?'완주':isGoal?'도착칸':option.to+'번 칸';
-  const captureText=enemies?(option.steps>=4?' (잡기 · 추가 던지기 없음)':' (잡기 · 추가 던지기)'):'';
-  target.title=option.label+' → '+placeText+(allies?' (업기)':'')+captureText;
-  target.setAttribute('aria-label',option.label+' 결과로 '+placeText+' 이동');
-  target.addEventListener('click',()=>{playSound(enemies?'capture':'move');send({type:'move',piece:state.selected,rollIndex:option.rollIndex,route:option.route,to:option.to});state.selected=null;root.innerHTML='';});
-  root.appendChild(target);
+  if(preview){
+   const nodes=routeNodes[option.route]||routeNodes.outer;
+   const start=selectedPiece.pos===-1?-1:nodes.indexOf(selectedPiece.pos);
+   const traveled=selectedPiece.pos===-1?[30]:[selectedPiece.pos];
+   if(option.steps>0){for(let i=start+1;i<=Math.min(start+option.steps,nodes.length-1);i++)traveled.push(nodes[i]);}
+   else if(option.steps<0){traveled.push(option.to===30?30:option.to);}
+   if(option.to==='FIN')traveled.push(30);
+   if(traveled.length>1){const path=document.createElementNS('http://www.w3.org/2000/svg','polyline');path.setAttribute('points',traveled.filter(n=>positions[n]).map(n=>positions[n].join(',')).join(' '));path.setAttribute('fill','none');path.setAttribute('stroke',['#2a70e0','#d77c25','#2b9368','#9154cb','#b33b50'][option.rollIndex%5]);path.setAttribute('stroke-width','8');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');path.setAttribute('stroke-opacity','.75');path.setAttribute('stroke-dasharray','13 8');preview.appendChild(path);}
+  }
+  const key=String(option.to);
+  if(!grouped.has(key))grouped.set(key,[]);
+  grouped.get(key).push(option);
+ }
+ for(const [key,group] of grouped){
+  const destination=group[0].to;
+  const point=positions[destination==='FIN'?30:destination];if(!point)continue;
+  const enemies=destination==='FIN'?0:state.game.pieces.reduce((count,ps,owner)=>count+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===destination).length),0);
+  const allies=destination==='FIN'?0:state.game.pieces[state.player].filter(p=>p.pos===destination).length;
+  const kind=destination==='FIN'?'완주':enemies?'잡기':allies?'업기':destination===30?'도착':'이동';
+  const cluster=document.createElement('div');cluster.className='target-cluster'+(enemies?' capture':'')+(destination==='FIN'?' finish':'')+(allies?' stack':'');
+  cluster.style.left=(point[0]/570*100)+'%';cluster.style.top=(point[1]/570*100)+'%';
+  for(const option of group){
+   const target=document.createElement('button');target.type='button';target.className='board-target target-choice';
+   target.innerHTML='<strong>'+option.label+'</strong><small>'+kind+'</small>';
+   target.title=option.label+'로 '+kind+(enemies&&option.steps<4?' · 잡은 뒤 추가 던지기':'');
+   target.setAttribute('aria-label',option.label+'로 '+kind+' 이동');
+   target.addEventListener('click',()=>{
+    playSound(enemies?'capture':'move');
+    send({type:'move',piece:state.selected,rollIndex:option.rollIndex,route:option.route,to:option.to});
+    state.selected=null;root.innerHTML='';
+   });
+   cluster.appendChild(target);
+  }
+  root.appendChild(cluster);
  }
 }
 let lastFrame=0;

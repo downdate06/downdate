@@ -46,3 +46,22 @@
 .board-choice-panel .pending-pill.chosen{background:#f2b847;border-color:#ad7520;color:#3e2708;box-shadow:0 0 0 3px #f4d78e}
 .selection-status{font-size:12px;line-height:1.5;font-weight:750;color:#35547d;margin:6px 0 0}
 @media(max-width:600px){.board-choice-panel .pending-pill{font-size:17px;min-height:48px;flex:1 1 auto}.board-choice-panel .pending-guide span{font-size:10px}}
+/* v2.6: select a piece first; every legal result is visible directly on the board */
+.pending-info{display:inline-flex;align-items:center;cursor:default!important;opacity:1!important}
+.target-cluster{position:absolute;transform:translate(-50%,-50%);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:3px;z-index:12;pointer-events:auto;max-width:146px;min-width:54px;padding:3px;border-radius:13px;background:#ffffffeb;border:2px solid #e6b74e;box-shadow:0 3px 14px #1117}
+.target-cluster.capture{border-color:#ca4235;background:#fff1ed}
+.target-cluster.finish{border-color:#24996d;background:#e9fff0}
+.target-cluster.stack{border-color:#4e80d2;background:#e8f3ff}
+.target-cluster .board-target.target-choice{position:relative;inset:auto;transform:none;animation:none;width:49px;height:46px;display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:center;box-shadow:none;border:1px solid #c99935;border-radius:9px;background:#ffe5a5;line-height:1.05;cursor:pointer;white-space:nowrap}
+.target-cluster.capture .board-target{background:#ffbcb3;border-color:#c43829;color:#751c13}
+.target-cluster.finish .board-target{background:#b8eed5;border-color:#228461;color:#13523c}
+.target-cluster.stack .board-target{background:#bad9ff;border-color:#4a76b7;color:#164479}
+.target-cluster .board-target strong{font-size:16px}
+.target-cluster .board-target small{font-size:10px;font-weight:850}
+.target-cluster .board-target:active{transform:scale(.94)}
+.yut-stage-status{position:absolute;left:8px;right:8px;bottom:7px;z-index:3;display:flex;justify-content:center;pointer-events:none}
+.yut-stage-status span{padding:5px 11px;border-radius:25px;color:#fff;background:#1b3527d9;font-size:13px;font-weight:900;letter-spacing:.4px;box-shadow:0 2px 8px #0004}
+.yut-stage-status.nak span{background:#b4231ddf;font-size:16px}
+@media(max-width:600px){.target-cluster{max-width:124px;gap:2px;padding:2px;border-radius:10px;min-width:44px}.target-cluster .board-target.target-choice{width:41px;height:41px}.target-cluster .board-target strong{font-size:14px}.target-cluster .board-target small{font-size:9px}}
+
+.board-preview{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;overflow:visible}
