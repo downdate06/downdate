@@ -48,19 +48,35 @@ if(canvas){
   const edgeMat=new THREE.MeshStandardMaterial({color:0xa66a3c,roughness:.81});
   const ivory=new THREE.MeshStandardMaterial({color:0xffe7b7,roughness:.84});
   const darkDot=new THREE.MeshStandardMaterial({color:0x3a271b,roughness:.9});
-  const stickShape=new THREE.Shape();
-  stickShape.moveTo(-.18,-.64);stickShape.quadraticCurveTo(-.25,-.64,-.25,-.52);
-  stickShape.lineTo(-.25,.52);stickShape.quadraticCurveTo(-.25,.64,-.17,.64);
-  stickShape.lineTo(.17,.64);stickShape.quadraticCurveTo(.25,.64,.25,.52);
-  stickShape.lineTo(.25,-.52);stickShape.quadraticCurveTo(.25,-.64,.18,-.64);
-  stickShape.closePath();
-  const pieceGeo=new THREE.ExtrudeGeometry(stickShape,{depth:.30,bevelEnabled:true,bevelSize:.035,bevelThickness:.055,bevelSegments:4,curveSegments:10});
-  pieceGeo.translate(0,0,-.15);
+  // True half-round cross-section: one broad flat face and one arched wooden back.
+  // The old extruded rectangle made all four side faces visually ambiguous.
+  function halfRoundGeometry(radius=.245,length=1.28){
+   const shape=new THREE.Shape();
+   shape.moveTo(-radius,0);
+   shape.lineTo(radius,0);
+   const n=32;
+   for(let j=1;j<=n;j++){
+    const theta=Math.PI*j/n;
+    shape.lineTo(radius*Math.cos(theta),-radius*Math.sin(theta));
+   }
+   shape.closePath();
+   const geo=new THREE.ExtrudeGeometry(shape,{
+    depth:length,steps:1,bevelEnabled:true,bevelThickness:.028,
+    bevelSize:.020,bevelSegments:3,curveSegments:32
+   });
+   geo.translate(0,0,-length/2);
+   geo.rotateX(Math.PI/2);
+   geo.computeVertexNormals();
+   return geo;
+  }
+  const pieceGeo=halfRoundGeometry();
+  const flatInsetGeo=new THREE.PlaneGeometry(.405,1.14);
+  const curvedBackMat=new THREE.MeshStandardMaterial({color:0xdca66b,roughness:.70});
   const sticks=[];let lastImpact=0;let landing=null;
   const status=document.createElement('div');status.className='yut-stage-status';canvas.parentElement.appendChild(status);
   const showStatus=(msg,nak=false)=>{status.textContent=msg;status.className='yut-stage-status'+(nak?' nak':'');};
   for(let i=0;i<4;i++){
-   const body=new CANNON.Body({mass:.4,shape:new CANNON.Box(new CANNON.Vec3(.23,.63,.17)),linearDamping:.44,angularDamping:.57,sleepSpeedLimit:.13,sleepTimeLimit:.45});
+   const body=new CANNON.Body({mass:.4,shape:new CANNON.Box(new CANNON.Vec3(.22,.62,.16)),linearDamping:.48,angularDamping:.66,sleepSpeedLimit:.13,sleepTimeLimit:.45});
    world.addBody(body);
    body.addEventListener('collide',event=>{
     if(!landing||landing.phase!=='flight')return;
@@ -85,24 +101,23 @@ if(canvas){
     const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
     return new THREE.MeshStandardMaterial({map:t,roughness:.85,side:THREE.DoubleSide});
    };
-   const bodyMesh=new THREE.Mesh(pieceGeo,edgeMat);bodyMesh.castShadow=true;bodyMesh.receiveShadow=true;group.add(bodyMesh);
+   const bodyMesh=new THREE.Mesh(pieceGeo,curvedBackMat);bodyMesh.castShadow=true;bodyMesh.receiveShadow=true;group.add(bodyMesh);
    // Flat front is solid dark brown with visible ivory engravings.
-   const front=new THREE.Mesh(new THREE.PlaneGeometry(.39,1.14),surfaceTexture('front'));
-   front.position.z=.207;group.add(front);
+   const front=new THREE.Mesh(flatInsetGeo,surfaceTexture('front'));
+   front.position.z=.006;group.add(front);
    for(const y of [-.35,0,.35]){
-    const notch=new THREE.Mesh(new THREE.BoxGeometry(.21,.022,.008),ivory);notch.position.set(0,y,.216);group.add(notch);
+    const notch=new THREE.Mesh(new THREE.BoxGeometry(.21,.022,.008),ivory);notch.position.set(0,y,.016);group.add(notch);
    }
 
-   // Pale back: distinctly different from the front and slightly curved.
-   const back=new THREE.Mesh(new THREE.PlaneGeometry(.39,1.14),surfaceTexture('back'));
-   back.rotation.y=Math.PI;back.position.z=-.212;group.add(back);
-   const backSpot=new THREE.Mesh(new THREE.CircleGeometry(.115,32),new THREE.MeshStandardMaterial({color:0x80502f,roughness:.9,side:THREE.DoubleSide}));
-   backSpot.rotation.y=Math.PI;backSpot.position.z=-.220;group.add(backSpot);
-   if(i===0){const specialMat=new THREE.MeshStandardMaterial({color:0xedb92d,roughness:.76});
-    const mark=new THREE.Mesh(new THREE.CircleGeometry(.12,32),specialMat);
-    mark.position.set(0,-.43,.227);group.add(mark);
-    const dot=new THREE.Mesh(new THREE.CircleGeometry(.045,20),darkDot);
-    dot.position.set(0,-.43,.229);group.add(dot);}
+   // Curved back intentionally has no rectangular plane stuck onto it.
+   // Engraved marks sit on the flat side only, making the two landing faces obvious.
+   if(i===0){
+    const specialMat=new THREE.MeshStandardMaterial({color:0xffca37,roughness:.68,side:THREE.DoubleSide});
+    const mark=new THREE.Mesh(new THREE.CircleGeometry(.10,32),specialMat);
+    mark.position.set(0,-.42,.019);group.add(mark);
+    const dot=new THREE.Mesh(new THREE.CircleGeometry(.04,20),darkDot);
+    dot.position.set(0,-.42,.021);group.add(dot);
+   }
    group.position.set((i-1.5)*.72,.34,(i%2-.5)*1.15);
    scene.add(group);sticks.push({body,mesh:group});
   }
@@ -112,7 +127,7 @@ if(canvas){
     body.position.set((i-1.5)*.75,.35,(i%2-.5)*1.10);
     body.velocity.setZero();body.angularVelocity.setZero();body.sleep();
     mesh.position.set(body.position.x,.32,body.position.z);
-    mesh.rotation.set(Math.PI/2,0,(i-1.5)*.12);
+    mesh.rotation.set(i%2===0?-Math.PI/2:Math.PI/2,0,(i-1.5)*.12);
    });
   }
   placeAtRest();
