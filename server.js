@@ -51,7 +51,8 @@ async function startIfReady(r){
 async function handle(c,msg){if(!msg||typeof msg!=='object')return;
  try{
  if(msg.type==='create'){
-  const mode=msg.mode||'individual',n=mode==='team'?4:Number(msg.playerCount??4),stake=Number(msg.stake||0);
+  const mode=msg.mode||'individual',n=Number(msg.playerCount??4),stake=Number(msg.stake||0);
+  if(mode==='team')throw Error('팀전은 현재 개발 중입니다. 개인전을 선택해 주세요.');
   if(![0,1000,5000,10000].includes(stake))throw Error('잘못된 게임머니 설정입니다.');
   if(stake&&!c.accountId)throw Error('가상 머니 대전은 로그인이 필요합니다.');
   const id=code(),g=createGame(mode,n);g.players[0].name=c.accountId?auth.get(c.accountId).name:cleanName(msg.name);g.players[0].connected=true;

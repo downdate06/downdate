@@ -117,7 +117,7 @@ function renderTargets(){
  const options=state.moves.filter(m=>m.piece===state.selected);
  const grouped=new Map();
  const shownPaths=new Set();
- const routeNodes={outer:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,30],cut5:[1,2,3,4,5,21,22,23,24,25,15,16,17,18,19,30],cut10:[1,2,3,4,5,6,7,8,9,10,26,27,23,28,29,30],cut5fast:[1,2,3,4,5,21,22,23,28,29,30],cut10long:[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30]};
+ const routeNodes={outer:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,30],cut5:[1,2,3,4,5,21,22,23,28,29,30],cut10:[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30],cut5fast:[1,2,3,4,5,21,22,23,28,29,30],cut10long:[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30]};
  const selectedPiece=state.game.pieces[state.player][state.selected];
  for(const option of options){
   const previewKey=[option.route,option.to,option.steps,selectedPiece.pos].join(':');
@@ -175,7 +175,7 @@ function beginCharge(e){if(!myTurn()||state.game.phase!=='roll'||state.charging)
 function endCharge(e){if(!state.charging)return;if(e?.cancelable)e.preventDefault();state.chargePower=Math.min(100,(performance.now()-state.chargeStart)/14);state.charging=false;$('throw').classList.remove('charging');if(!myTurn()||state.game.phase!=='roll')return;send({type:'roll',power:Math.round(state.chargePower)});playSound('roll');}
 $('throw').addEventListener('pointerdown',beginCharge);$('throw').addEventListener('pointerup',endCharge);$('throw').addEventListener('pointercancel',()=>{state.charging=false;$('throw').classList.remove('charging');});
 $('throw').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat)beginCharge(e);});$('throw').addEventListener('keyup',e=>{if(e.key==='Enter'||e.key===' ')endCharge(e);});
-$('mode').addEventListener('change',()=>{const team=$('mode').value==='team';$('player-count').value=team?'4':$('player-count').value;$('player-count').disabled=team;});
+$('mode').addEventListener('change',()=>{if($('mode').value==='team'){$('mode').value='individual';toast('팀전은 개발 중입니다. 개인전을 이용해 주세요.');}$('player-count').disabled=false;});
 $('create').addEventListener('click',()=>{if(state.ws?.readyState!==WebSocket.OPEN)return toast('서버 연결을 확인해 주세요.');state.manualLeave=false;send({type:'create',name:$('name').value,mode:$('mode').value,playerCount:Number($('player-count').value),stake:Number($('stake').value)});});
 $('join').addEventListener('click',()=>{const room=$('room-input').value.trim().toUpperCase();if(room.length!==6)return toast('6자리 방 코드를 입력하세요.');state.manualLeave=false;send({type:'join',room,name:$('name').value});});$('room-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('join').click();});
 
@@ -184,7 +184,7 @@ async function authRequest(route,data,method='POST'){
  const res=await fetch('/api/'+route,{method,headers:{'Content-Type':'application/json',...(state.token?{'Authorization':'Bearer '+state.token}:{})},body:method==='GET'?undefined:JSON.stringify(data||{})});const json=await res.json();if(!res.ok)throw Error(json.error||'요청 실패');return json;
 }
 function updateAccount(){const a=state.account;$('auth-form').classList.toggle('hidden',!!a);$('account-view').classList.toggle('hidden',!a);$('wallet-mini').textContent=a?'🪙 '+a.balance.toLocaleString('ko-KR')+' 머니':'';if(a){$('account-name').textContent='👤 '+a.name;$('account-balance').textContent='🪙 '+a.balance.toLocaleString('ko-KR')+' 머니';$('account-record').textContent='승리 '+a.wins+' · 패배 '+a.losses;$('name').value=a.name;$('name').disabled=true;$('refill').disabled=a.balance!==0;}else $('name').disabled=false;}
-async function doAuth(route){try{const json=await authRequest(route,{name:$('login-id').value.trim(),password:$('login-pass').value});state.token=json.token;localStorage.setItem('yut-token',json.token);if($('remember-id').checked){localStorage.setItem('yut-remember-id',$('login-id').value.trim());}else{localStorage.removeItem('yut-remember-id');}state.account=json.account;updateAccount();toast(route==='login'?'로그인 성공!':'가입 완료! 10만 게임머니가 지급됐습니다.');state.ws?.close();}catch(e){toast(e.message);}}
+async function doAuth(route){try{const json=await authRequest(route,{name:$('login-id').value.trim(),password:$('login-pass').value});state.token=json.token;localStorage.setItem('yut-token',json.token);if($('remember-id').checked){localStorage.setItem('yut-remember-id',$('login-id').value.trim());}else{localStorage.removeItem('yut-remember-id');}state.account=json.account;updateAccount();toast(route==='login'?'로그인 성공!':'가입 완료! 1,000 게임머니가 지급됐습니다.');state.ws?.close();}catch(e){toast(e.message);}}
 const savedLoginId=localStorage.getItem('yut-remember-id');
 if(savedLoginId){$('login-id').value=savedLoginId;$('remember-id').checked=true;}
 $('remember-id').addEventListener('change',()=>{if(!$('remember-id').checked)localStorage.removeItem('yut-remember-id');});
@@ -193,7 +193,7 @@ fetch('/health',{cache:'no-store'}).then(r=>r.json()).then(x=>{const hint=$('sto
 $('login').addEventListener('click',()=>doAuth('login'));
 $('register').addEventListener('click',()=>doAuth('register'));
 $('logout').addEventListener('click',()=>{state.token=null;state.account=null;localStorage.removeItem('yut-token');updateAccount();state.ws?.close();});
-$('refill').addEventListener('click',async()=>{try{const r=await authRequest('refill');state.account=r.account;updateAccount();toast('가상 머니 100,000원이 충전됐습니다.');}catch(e){toast(e.message);}});
+$('refill').addEventListener('click',async()=>{try{const r=await authRequest('refill');state.account=r.account;updateAccount();toast('가상 머니 1,000원이 충전됐습니다.');}catch(e){toast(e.message);}});
 $('sound-toggle').addEventListener('click',()=>{state.sound=!state.sound;localStorage.setItem('yut-muted',state.sound?'0':'1');$('sound-toggle').textContent=state.sound?'🔊 소리 켜짐':'🔇 소리 꺼짐';if(state.sound)playSound('select');});
 if(state.token)authRequest('me',null,'GET').then(r=>{state.account=r.account;updateAccount();}).catch(()=>{state.token=null;localStorage.removeItem('yut-token');updateAccount();});
 $('ready-toggle').addEventListener('click',()=>send({type:'ready',value:!state.readyFlags[state.player]}));

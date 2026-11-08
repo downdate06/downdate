@@ -30,9 +30,9 @@ if(canvas){
    const ring=new THREE.Mesh(new THREE.TorusGeometry(.43+i*.29,.007,4,96),new THREE.MeshBasicMaterial({color:i%2?0x975f32:0xc59760,transparent:true,opacity:.20,depthWrite:false}));
    ring.rotation.x=-Math.PI/2;ring.position.y=.099;scene.add(ring);
   }
-  const world=new CANNON.World({gravity:new CANNON.Vec3(0,-10.5,0),allowSleep:true});
-  world.solver.iterations=20;world.defaultContactMaterial.friction=.68;
-  world.defaultContactMaterial.restitution=.42;
+  const world=new CANNON.World({gravity:new CANNON.Vec3(0,-12.0,0),allowSleep:true});
+  world.solver.iterations=22;world.defaultContactMaterial.friction=.94;
+  world.defaultContactMaterial.restitution=.10;
   const floorBody=new CANNON.Body({mass:0,shape:new CANNON.Cylinder(3.06,3.06,.19,36)});
   floorBody.position.set(0,-.014,0);world.addBody(floorBody);
   // Physical rim: every normal throw is constrained inside the circular dish.
@@ -60,7 +60,7 @@ if(canvas){
   const status=document.createElement('div');status.className='yut-stage-status';canvas.parentElement.appendChild(status);
   const showStatus=(msg,nak=false)=>{status.textContent=msg;status.className='yut-stage-status'+(nak?' nak':'');};
   for(let i=0;i<4;i++){
-   const body=new CANNON.Body({mass:.4,shape:new CANNON.Box(new CANNON.Vec3(.23,.63,.17)),linearDamping:.21,angularDamping:.19});
+   const body=new CANNON.Body({mass:.4,shape:new CANNON.Box(new CANNON.Vec3(.23,.63,.17)),linearDamping:.44,angularDamping:.57,sleepSpeedLimit:.13,sleepTimeLimit:.45});
    world.addBody(body);
    body.addEventListener('collide',event=>{
     if(!landing||landing.phase!=='flight')return;
@@ -69,18 +69,35 @@ if(canvas){
     if(velocity>1.1&&now-lastImpact>65){lastImpact=now;window.yutImpact?.(Math.min(velocity/12,1),i%3);}
    });
    const group=new THREE.Group();
+   const surfaceTexture=(face)=>{
+    const c=document.createElement('canvas');c.width=256;c.height=512;
+    const ctx=c.getContext('2d');
+    const dark=face==='front';
+    const gradient=ctx.createLinearGradient(0,0,256,0);
+    gradient.addColorStop(0,dark?'#462514':'#b9854c');
+    gradient.addColorStop(.45,dark?'#714223':'#ffe0a3');
+    gradient.addColorStop(1,dark?'#3e2316':'#b37a42');
+    ctx.fillStyle=gradient;ctx.fillRect(0,0,256,512);
+    ctx.strokeStyle=dark?'#eac98e':'#88512d';ctx.lineWidth=9;
+    ctx.strokeRect(16,16,224,480);
+    ctx.font='bold 140px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle=dark?'#fff0c4':'#603618';ctx.fillText(dark?'앞':'뒤',128,245);
+    const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+    return new THREE.MeshStandardMaterial({map:t,roughness:.85,side:THREE.DoubleSide});
+   };
    const bodyMesh=new THREE.Mesh(pieceGeo,edgeMat);bodyMesh.castShadow=true;bodyMesh.receiveShadow=true;group.add(bodyMesh);
    // Flat front is solid dark brown with visible ivory engravings.
-   const front=new THREE.Mesh(new THREE.PlaneGeometry(.39,1.14),frontMat);
+   const front=new THREE.Mesh(new THREE.PlaneGeometry(.39,1.14),surfaceTexture('front'));
    front.position.z=.207;group.add(front);
    for(const y of [-.35,0,.35]){
     const notch=new THREE.Mesh(new THREE.BoxGeometry(.21,.022,.008),ivory);notch.position.set(0,y,.216);group.add(notch);
    }
-   const stripe=new THREE.Mesh(new THREE.BoxGeometry(.027,1.0,.008),ivory);
-   stripe.position.set(0,0,.217);group.add(stripe);
+
    // Pale back: distinctly different from the front and slightly curved.
-   const back=new THREE.Mesh(new THREE.PlaneGeometry(.39,1.14),backMat);
+   const back=new THREE.Mesh(new THREE.PlaneGeometry(.39,1.14),surfaceTexture('back'));
    back.rotation.y=Math.PI;back.position.z=-.212;group.add(back);
+   const backSpot=new THREE.Mesh(new THREE.CircleGeometry(.115,32),new THREE.MeshStandardMaterial({color:0x80502f,roughness:.9,side:THREE.DoubleSide}));
+   backSpot.rotation.y=Math.PI;backSpot.position.z=-.220;group.add(backSpot);
    if(i===0){const specialMat=new THREE.MeshStandardMaterial({color:0xedb92d,roughness:.76});
     const mark=new THREE.Mesh(new THREE.CircleGeometry(.12,32),specialMat);
     mark.position.set(0,-.43,.227);group.add(mark);
@@ -99,19 +116,19 @@ if(canvas){
    });
   }
   placeAtRest();
-  const totalFlight=3.65,settleDuration=1.35;
+  const totalFlight=4.00,settleDuration=1.00;
   function toss(result,power=50){
    const bits=Array.isArray(result?.bits)?[...result.bits]:[];
    const nak=!!result?.nak;
    landing={id:result?.id,bits,nak,label:result?.label||'',backdo:!!result?.backdo,
-    start:performance.now(),phase:'flight',snapshot:null,shown:false,nudges:0};
+    start:performance.now(),phase:'flight',snapshot:null,shown:false};
    const charge=Math.max(0,Math.min(1,Number(power)/100||0));
    showStatus('윷을 던지는 중 · 착지 대기');
    sticks.forEach(({body},i)=>{
-    body.position.set((i-1.5)*.23,3.65+i*.2,(i%2-.5)*.25);
+    body.position.set((i-1.5)*.23,3.3+i*.18,(i%2-.5)*.25);
     body.quaternion.setFromEuler(Math.random()*3,Math.random()*3,Math.random()*3);
-    body.velocity.set((Math.random()-.5)*2.1,2.2+charge*1.2,(Math.random()-.5)*2.1);
-    body.angularVelocity.set((Math.random()-.5)*20,(Math.random()-.5)*16,(Math.random()-.5)*20);
+    body.velocity.set((Math.random()-.5)*3.2,1.7+charge*.8,(Math.random()-.5)*3.2);
+    body.angularVelocity.set((Math.random()-.5)*12,(Math.random()-.5)*12,(Math.random()-.5)*12);
     body.wakeUp();
    });
    if(loading)loading.style.display='none';
@@ -134,31 +151,21 @@ if(canvas){
    if(w&&h){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}};
   window.addEventListener('resize',resize);
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(resize).observe(canvas);resize();
-  function targetPosition(i,nak){
-   if(nak&&i===3)return new THREE.Vector3(3.72,.235,.10);
-   const x=[-.85,.85,-.82,.85][i],z=[-.95,-.88,.85,.98][i];
-   return new THREE.Vector3(x,.235,z);
+  function targetPosition(i,landing){
+   if(landing.nak&&i===3)return new THREE.Vector3(3.72,.255,.10);
+   const snap=landing.snapshot[i].position;
+   const scale=Math.min(1,2.00/Math.max(.01,Math.hypot(snap.x,snap.z)));
+   return new THREE.Vector3(snap.x*scale,.255,snap.z*scale);
   }
   function targetRotation(bit,i){
    // Flat face is at local +Z; bit=1 faces upward, bit=0 exposes the pale back.
-   return new THREE.Quaternion().setFromEuler(new THREE.Euler(bit?-Math.PI/2:Math.PI/2,0,(i-1.5)*.14));
+   return new THREE.Quaternion().setFromEuler(new THREE.Euler(bit?-Math.PI/2:Math.PI/2,0,0));
   }
   let last=performance.now();
   function frame(){
    requestAnimationFrame(frame);const now=performance.now(),dt=Math.min(.05,(now-last)/1000);last=now;
    if(!landing||landing.phase==='flight')world.step(1/60,dt,4);
    const elapsed=landing?(now-landing.start)/1000:0;
-   if(landing&&landing.phase==='flight'&&landing.nudges<2&&elapsed>1.45+landing.nudges*.86){
-    landing.nudges++;
-    sticks.forEach(({body},i)=>{
-     // A pair of rolling impulses simulates the staggered clatter seen in the reference clips.
-     body.wakeUp();
-     const a=i*2.399+landing.nudges*.65;
-     body.applyImpulse(new CANNON.Vec3(Math.cos(a)*.37,.22,Math.sin(a)*.37),body.position);
-     body.angularVelocity.x+=(i%2?1:-1)*4;
-     body.angularVelocity.z+=(i%2?-1:1)*3.4;
-    });
-   }
    if(landing&&landing.phase==='flight'&&elapsed>=totalFlight){
     landing.phase='settle';
     landing.snapshot=sticks.map(({body})=>({
@@ -182,13 +189,13 @@ if(canvas){
     const t=Math.min(1,Math.max(0,(elapsed-totalFlight)/settleDuration));
     const smooth=t*t*(3-2*t);
     const snap=landing.snapshot[i];
-    mesh.position.copy(snap.position).lerp(targetPosition(i,landing.nak),smooth);
+    mesh.position.copy(snap.position).lerp(targetPosition(i,landing),smooth);
     mesh.quaternion.copy(snap.quaternion).slerp(targetRotation(landing.bits[i]||0,i),smooth);
    });
    if(landing&&!landing.shown&&elapsed>=totalFlight+settleDuration){
     landing.shown=true;landing.phase='done';
     showStatus(landing.nak?'낙! 1개가 원형판 밖 · 무효':
-     `${landing.label} · 네 개 모두 판 안에 정상 착지`,landing.nak);
+     `${landing.label} · 앞면 ${landing.bits.filter(Boolean).length} / 뒷면 ${4-landing.bits.filter(Boolean).length} · 정상 착지`,landing.nak);
     window.yutThrowSettled?.({id:landing.id,label:landing.label,nak:landing.nak,bits:landing.bits});
    }
    renderer.render(scene,camera);

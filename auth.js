@@ -2,7 +2,7 @@ const fs=require('fs');
 const path=require('path');
 const crypto=require('crypto');
 const DATA=process.env.DATA_FILE||path.join(__dirname,'accounts.json');
-const START=100000;
+const START=1000;
 let db=null;
 const accounts=new Map(),sessions=new Map();
 function hashPassword(pass,salt){return crypto.scryptSync(pass,salt,64).toString('hex');}

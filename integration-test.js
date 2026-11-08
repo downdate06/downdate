@@ -15,12 +15,13 @@ async function wait(t,msg){const until=Date.now()+t;while(Date.now()<until){cons
  const a=await inbox('ws://localhost:'+port+'/ws'),b=await inbox('ws://localhost:'+port+'/ws');
  a.send({type:'hello',session:'sessiona',token:t1});b.send({type:'hello',session:'sessionb',token:t2});
  assert.equal((await a.next()).type,'hello');assert.equal((await b.next()).type,'hello');
+ a.send({type:'create',mode:'team',playerCount:4,stake:0});const teamError=await a.next();assert.equal(teamError.type,'error');assert.match(teamError.message,/팀전.*개발 중/);
  a.send({type:'create',mode:'individual',playerCount:2,stake:1000});let s=await a.next();assert.equal(s.type,'state');assert.equal(s.started,false);const room=s.room;
- b.send({type:'join',room});s=await b.next();assert.equal(s.started,false);assert.equal(s.account.balance,100000);s=await a.next();assert.equal(s.account.balance,100000);
+ b.send({type:'join',room});s=await b.next();assert.equal(s.started,false);assert.equal(s.account.balance,1000);s=await a.next();assert.equal(s.account.balance,1000);
  a.send({type:'start'});assert.match((await a.next()).message,/준비/);
  a.send({type:'ready',value:true});await a.next();await b.next();
  b.send({type:'ready',value:true});await a.next();s=await b.next();assert.deepEqual(s.ready,[true,true]);
- a.send({type:'start'});s=await a.next();assert.equal(s.type,'state');assert.equal(s.started,true);assert.equal(s.account.balance,99000);s=await b.next();assert.equal(s.account.balance,99000);
+ a.send({type:'start'});s=await a.next();assert.equal(s.type,'state');assert.equal(s.started,true);assert.equal(s.account.balance,0);s=await b.next();assert.equal(s.account.balance,0);
  a.send({type:'start'});assert.match((await a.next()).message,/이미/);
  a.send({type:'roll',power:45});s=await a.next();assert.equal(s.type,'state');assert(s.game.revealAt>Date.now());await b.next();
  a.send({type:'roll',power:45});assert.match((await a.next()).message,/멈춘 뒤/);
