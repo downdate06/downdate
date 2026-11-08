@@ -1,8 +1,8 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-window.yutThrowSettled=payload=>{const roll=state.game?.roll;if(!roll||roll.id!==payload.id)return;state.visualSettledId=state.room+':'+roll.id;const label=$('roll-result');if(label)label.textContent=roll.label+'!';};
+window.yutThrowSettled=payload=>{const roll=state.game?.roll;if(!roll||roll.id!==payload.id)return;state.visualSettledId=state.room+':'+roll.id;const label=$('roll-result');if(label)label.textContent=roll.label+'!';const faces=$('face-result');if(faces)faces.classList.remove('throwing');render();};
 const initialInvite=new URLSearchParams(location.search).get('room');
-const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,selectedRollId:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,sound:localStorage.getItem('yut-muted')!=='1'};
+const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,selectedRollId:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,started:false,readyFlags:[],account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,sound:localStorage.getItem('yut-muted')!=='1'};
 localStorage.setItem('yut-session',state.session);
 const positions={30:[510,510],21:[435,135],22:[360,210],23:[285,285],24:[210,360],25:[135,435],26:[135,135],27:[210,210],28:[360,360],29:[435,435]};
 for(let i=1;i<=5;i++)positions[i]=[510,510-90*i];
@@ -18,10 +18,10 @@ function board(){const svg=$('board-svg');svg.innerHTML='';const NS='http://www.
 }
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>$('toast').classList.remove('show'),3000);}
 function connStatus(online){$('connection').classList.toggle('online',online);$('connection').innerHTML='<i></i> '+(online?'서버 연결됨':'연결 중...');}
-function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value,token:state.token});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){const oldTurn=state.game?.turn,oldRoom=state.room,oldMoveNo=state.game?.moveNo;state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];if(msg.account)state.account=msg.account; if(oldRoom!==msg.room||oldTurn!==msg.game.turn||oldMoveNo!==msg.game.moveNo){state.selected=null;}if(!msg.game.pending.some(r=>r.id===state.selectedRollId))state.selectedRollId=null;renderTargets();updateAccount();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='hello'){if(msg.account){state.account=msg.account;updateAccount();}}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
+function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value,token:state.token});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){const oldTurn=state.game?.turn,oldRoom=state.room,oldMoveNo=state.game?.moveNo,oldWinner=state.game?.winner;state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];state.started=!!msg.started;state.readyFlags=msg.ready||[];if(oldWinner!==null&&oldWinner!==undefined&&msg.game.winner===null){state.lastThrowId=null;state.visualSettledId=null;}if(msg.account)state.account=msg.account; if(oldRoom!==msg.room||oldTurn!==msg.game.turn||oldMoveNo!==msg.game.moveNo){state.selected=null;}if(!msg.game.pending.some(r=>r.id===state.selectedRollId))state.selectedRollId=null;renderTargets();updateAccount();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='left'){finishLeaving();}else if(msg.type==='hello'){if(msg.account){state.account=msg.account;updateAccount();}}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
 function send(msg){if(state.ws?.readyState===WebSocket.OPEN)state.ws.send(JSON.stringify(msg));else toast('서버에 연결 중입니다. 다시 시도해 주세요.');}
 function ready(){const g=state.game;return !!(g&&g.players.every(p=>p.name&&p.connected));}
-function myTurn(){return ready()&&state.game.turn===state.player&&state.game.winner===null;}
+function myTurn(){return state.started&&ready()&&state.game.turn===state.player&&state.game.winner===null&&!(state.game.revealAt&&Date.now()<state.game.revealAt);}
 const COLORS=['blue','red','green','violet'];
 const SIDE_COLORS=['blue','red','blue','red'];
 function render(){const g=state.game;if(!g)return;
@@ -31,9 +31,9 @@ function render(){const g=state.game;if(!g)return;
  const root=$('players');root.innerHTML='';
  for(let i=0;i<g.players.length;i++){
   const fin=g.pieces[i].filter(p=>p.pos==='FIN').length;
-  const active=g.turn===i&&g.winner===null&&ready();
+  const active=state.started&&g.turn===i&&g.winner===null&&ready();
   const won=g.winner!==null&&(g.mode==='team'?g.winner===i%2:g.winner===i);
-  const status=!g.players[i].name?'입장 대기':!g.players[i].connected?'연결 끊김':won?'승리':g.winner!==null?'경기 종료':active?'진행 중':'대기 중';
+  const status=!g.players[i].name?'입장 대기':!g.players[i].connected?'연결 끊김':!state.started?(state.readyFlags[i]?'준비 완료':'준비 전'):won?'승리':g.winner!==null?'경기 종료':active?'진행 중':'대기 중';
   const card=document.createElement('div');card.className='player-card player-'+(g.mode==='team'?SIDE_COLORS[i]:COLORS[i]);
   const heading=document.createElement('div');heading.className='player-heading';
   const dot=document.createElement('span');dot.className='team-dot '+(g.mode==='team'?SIDE_COLORS[i]:COLORS[i]);heading.appendChild(dot);
@@ -46,20 +46,30 @@ function render(){const g=state.game;if(!g)return;
    const btn=document.createElement('button');btn.className='home-piece'+(p.pos==='FIN'?' finished':'')+(selectable?' selectable':'');btn.innerHTML=(p.pos==='FIN'?'✓':p.pos===-1?'●':'◉')+' <b>'+(j+1)+'</b>';btn.disabled=!selectable;btn.addEventListener('click',()=>choosePiece(j));home.appendChild(btn);}
   card.appendChild(home);root.appendChild(card);
  }
- const me=myTurn();const waiting=!ready();let title,desc;
- if(g.winner!==null){title='경기가 종료되었습니다';desc='다시 한 판으로 새로운 경기를 시작할 수 있습니다.';}
+ const me=myTurn();const waiting=!ready();const animating=!!(g.roll&&state.visualSettledId!==state.room+':'+g.roll.id);let title,desc;
+ const readiness=state.readyFlags.filter(Boolean).length;
+ $('ready-panel').classList.toggle('hidden',state.started);
+ $('ready-heading').textContent=readiness+' / '+g.playerCount+'명 준비 완료';
+ $('ready-detail').textContent='모든 참가자가 준비하면 방장(1P)이 시작할 수 있습니다. 참가비는 시작 순간에만 차감됩니다.';
+ $('ready-toggle').textContent=state.readyFlags[state.player]?'준비 취소':'준비하기';
+ $('ready-toggle').disabled=state.started||!g.players[state.player]?.connected;
+ $('host-start').classList.toggle('hidden',state.player!==0);
+ $('host-start').disabled=state.started||waiting||readiness!==g.playerCount;
+ if(g.winner!==null){title='경기가 종료되었습니다';desc='다시 한 판 또는 나가기를 선택할 수 있습니다.';}
+ else if(!state.started){title='게임 시작 대기';desc='모든 참가자가 준비하면 방장이 게임을 시작합니다.';}
+ else if(animating){title='윷이 구르는 중…';desc='윷 4개가 완전히 멈추면 결과를 공개합니다.';}
  else if(waiting){title=g.playerCount+'명 입장 대기';desc=g.players.filter(p=>p.name&&p.connected).length+' / '+g.playerCount+'명 접속 · 친구에게 방 코드를 알려주세요.';}
  else if(!me){title='상대방 차례';desc=g.players[g.turn].name+' 님이 플레이하고 있습니다.';}
  else if(g.phase==='roll'){title=g.pending.length?'윷·모 추가 던지기!':'윷을 던질 차례!';desc='버튼을 누른 채 파워를 충전하고 손을 떼면 던집니다.';}
  else{title='말을 선택해 이동하세요 · 결과 '+g.pending.length+'개';desc=state.selected===null?'기존 말 또는 대기 중인 새 말을 먼저 선택하세요.':'게임판에 표시된 결과별 도착 칸을 직접 누르세요. 다른 말을 다시 선택할 수도 있습니다.';}
  $('action-title').textContent=title;$('action-description').textContent=desc;
- $('turn-hint').textContent=g.winner!==null?'경기 종료':waiting?g.playerCount+'명을 기다리는 중...':g.players[g.turn].name+' 차례';
+ $('turn-hint').textContent=!state.started?'준비 대기':g.winner!==null?'경기 종료':waiting?g.playerCount+'명을 기다리는 중...':g.players[g.turn].name+' 차례';
  $('throw').disabled=!(me&&g.phase==='roll');$('throw').textContent=me&&g.phase==='roll'?'누르고 있다가 놓아 던지기 ↗':'윷 던지기';
- $('roll-result').textContent=g.roll?(state.visualSettledId===state.room+':'+g.roll.id?g.roll.label+'!':'착지 중…'):g.winner!==null?'종료':me?'준비!':'대기';
+ $('roll-result').textContent=g.roll?(state.visualSettledId===state.room+':'+g.roll.id?g.roll.label+'!':'굴러가는 중…'):g.winner!==null?'종료':!state.started?'시작 대기':me?'준비!':'대기';
  $('roll-result').style.color=g.roll?.bonus?'#e29a22':'#be8b2e';
- const faceView=$('face-result');if(faceView){faceView.innerHTML='';if(g.roll){const note=document.createElement('strong');const front=g.roll.bits?.filter(Boolean).length||0;note.textContent=g.roll.nak?'낙 · 판 밖에 윷이 떨어짐 · 무효':`착지 판정 · ${g.roll.label} · 앞면 ${front} / 뒷면 ${4-front}`+(g.roll.backdo?' · 표시 윷 1개':'');faceView.appendChild(note);if(!g.roll.nak){const faces=document.createElement('div');faces.className='face-dice';for(const [i,b] of g.roll.bits.entries()){const x=document.createElement('span');x.className='face-die '+(b?'flat':'round');x.textContent=b?'앞':'뒤';x.title=(i+1)+'번째 윷 · '+(b?'앞면(평평한 면)':'뒷면(둥근 면)');faces.appendChild(x);}faceView.appendChild(faces);}}}
- if(g.roll && (state.room+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.roll.id;window.__latestYutThrow={result:g.roll,power:g.lastPower};window.yut3d?.toss?.(g.roll,g.lastPower);setTimeout(()=>{if(state.room+':'+state.game?.roll?.id===state.lastThrowId&&state.visualSettledId!==state.lastThrowId){state.visualSettledId=state.lastThrowId;const out=$('roll-result');if(out)out.textContent=state.game.roll.label+'!';}},1900);if(g.roll.nak)playSound('nak');}
- const history=$('history');history.innerHTML='';for(const h of g.history.length?g.history:['첫 번째 윷을 던져보세요.']){const p=document.createElement('p');p.textContent=h;history.appendChild(p);}
+ const faceView=$('face-result');if(faceView){faceView.innerHTML='';faceView.classList.toggle('throwing',!!(g.roll&&state.visualSettledId!==state.room+':'+g.roll.id));if(g.roll){if(state.visualSettledId!==state.room+':'+g.roll.id){const progress=document.createElement('strong');progress.textContent='윷이 착지하는 중…';faceView.appendChild(progress);}else{const note=document.createElement('strong');const front=g.roll.bits?.filter(Boolean).length||0;note.textContent=g.roll.nak?'낙 · 판 밖에 윷이 떨어짐 · 무효':`착지 판정 · ${g.roll.label} · 앞면 ${front} / 뒷면 ${4-front}`+(g.roll.backdo?' · 빽도 표시 윷 1개':'');faceView.appendChild(note);if(!g.roll.nak){const faces=document.createElement('div');faces.className='face-dice';for(const [i,b] of g.roll.bits.entries()){const x=document.createElement('span');x.className='face-die '+(b?'flat':'round');x.textContent=b?'앞':'뒤';if(i===0){x.classList.add('special-stick');x.textContent=(b?'★앞':'★뒤');}x.title=(i+1)+'번째 윷 · '+(b?'앞면(평평한 면)':'뒷면(둥근 면)');faces.appendChild(x);}faceView.appendChild(faces);}}}}
+ if(g.roll && (state.room+':'+g.roll.id) !== state.lastThrowId){state.lastThrowId=state.room+':'+g.roll.id;window.__latestYutThrow={result:g.roll,power:g.lastPower};window.yut3d?.toss?.(g.roll,g.lastPower);setTimeout(()=>{if(state.room+':'+state.game?.roll?.id===state.lastThrowId&&state.visualSettledId!==state.lastThrowId){state.visualSettledId=state.lastThrowId;const out=$('roll-result');if(out)out.textContent=state.game.roll.label+'!';render();}},5200);}
+ const history=$('history');history.innerHTML='';const historyHidden=g.roll&&state.visualSettledId!==state.room+':'+g.roll.id;for(const h of historyHidden?['윷이 구르는 중 · 착지 후 결과 공개']:g.history.length?g.history:['첫 번째 윷을 던져보세요.']){const p=document.createElement('p');p.textContent=h;history.appendChild(p);}
  renderTokens();renderPending();renderTargets();$('win-modal').classList.toggle('hidden',g.winner===null);
  if(g.winner!==null){if(!state.winSoundFor||state.winSoundFor!==state.room+':'+g.moveNo){playSound('win');state.winSoundFor=state.room+':'+g.moveNo;}const winner=g.mode==='team'?(g.winner===0?'청팀':'홍팀'):g.players[g.winner].name;$('win-title').textContent=winner+' 승리!';$('win-subtitle').textContent=g.mode==='team'?'승리 팀의 말 8개가 모두 완주했습니다.':'말 4개를 먼저 완주했습니다.';}
 }
@@ -87,6 +97,7 @@ function choosePiece(index){
 }
 function renderPending(){
  const root=$('pending-rolls');root.innerHTML='';const g=state.game;if(!g)return;
+ if(g.roll&&state.visualSettledId!==state.room+':'+g.roll.id){$('pending-help').textContent='윷이 완전히 멈추면 누적 결과를 공개합니다.';$('selection-status').textContent='투척 중 · 결과를 기다려 주세요.';return;}
  const help=$('pending-help');
  if(help)help.textContent=g.pending.length?'원하는 말을 먼저 누르세요. 게임판에 모든 가능한 이동이 나타납니다.':'던진 결과가 여기에 쌓입니다.';
  for(const r of g.pending){
@@ -120,20 +131,20 @@ function renderTargets(){
    if(option.to==='FIN')traveled.push(30);
    if(traveled.length>1){const path=document.createElementNS('http://www.w3.org/2000/svg','polyline');path.setAttribute('points',traveled.filter(n=>positions[n]).map(n=>positions[n].join(',')).join(' '));path.setAttribute('fill','none');path.setAttribute('stroke',['#2a70e0','#d77c25','#2b9368','#9154cb','#b33b50'][option.rollIndex%5]);path.setAttribute('stroke-width','5');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');path.setAttribute('stroke-opacity','.48');path.setAttribute('stroke-dasharray','9 9');preview.appendChild(path);}
   }
-  const key=String(option.to);
+  const key=String(option.to==='FIN'?30:option.to);
   if(!grouped.has(key))grouped.set(key,[]);
   grouped.get(key).push(option);
  }
  for(const [key,group] of grouped){
-  const destination=group[0].to;
-  const point=positions[destination==='FIN'?30:destination];if(!point)continue;
-  const enemies=destination==='FIN'?0:state.game.pieces.reduce((count,ps,owner)=>count+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===destination).length),0);
-  const allies=destination==='FIN'?0:state.game.pieces[state.player].filter(p=>p.pos===destination).length;
-  const kind=destination==='FIN'?'완주':enemies?'잡기':allies?'업기':destination===30?'도착':'이동';
-  const cluster=document.createElement('div');cluster.className='target-cluster'+(enemies?' capture':'')+(destination==='FIN'?' finish':'')+(allies?' stack':'');
+  const point=positions[Number(key)];if(!point)continue;
+  const cluster=document.createElement('div');cluster.className='target-cluster';
   cluster.style.left=(point[0]/570*100)+'%';cluster.style.top=(point[1]/570*100)+'%';
   for(const option of group){
-   const target=document.createElement('button');target.type='button';target.className='board-target target-choice';
+   const destination=option.to;
+   const enemies=destination==='FIN'?0:state.game.pieces.reduce((count,ps,owner)=>count+(owner===state.player||(state.game.mode==='team'&&owner%2===state.player%2)?0:ps.filter(p=>p.pos===destination).length),0);
+   const allies=destination==='FIN'?0:state.game.pieces[state.player].filter(p=>p.pos===destination).length;
+   const kind=destination==='FIN'?'완주':enemies?'잡기':allies?'업기':destination===30?'도착':'이동';
+   const target=document.createElement('button');target.type='button';target.className='board-target target-choice'+(enemies?' capture':'')+(destination==='FIN'?' finish':'')+(allies?' stack':'');
    target.innerHTML='<strong>'+option.label+'</strong><small>'+kind+'</small>';
    target.title=option.label+'로 '+kind+(enemies&&option.steps<4?' · 잡은 뒤 추가 던지기':'');
    target.setAttribute('aria-label',option.label+'로 '+kind+' 이동');
@@ -185,6 +196,11 @@ $('logout').addEventListener('click',()=>{state.token=null;state.account=null;lo
 $('refill').addEventListener('click',async()=>{try{const r=await authRequest('refill');state.account=r.account;updateAccount();toast('가상 머니 100,000원이 충전됐습니다.');}catch(e){toast(e.message);}});
 $('sound-toggle').addEventListener('click',()=>{state.sound=!state.sound;localStorage.setItem('yut-muted',state.sound?'0':'1');$('sound-toggle').textContent=state.sound?'🔊 소리 켜짐':'🔇 소리 꺼짐';if(state.sound)playSound('select');});
 if(state.token)authRequest('me',null,'GET').then(r=>{state.account=r.account;updateAccount();}).catch(()=>{state.token=null;localStorage.removeItem('yut-token');updateAccount();});
-$('rematch').addEventListener('click',()=>send({type:'rematch'}));$('leave').addEventListener('click',()=>{state.manualLeave=true;state.room=null;state.player=null;state.game=null;state.moves=[];localStorage.removeItem('yut-room');$('game').classList.add('hidden');$('win-modal').classList.add('hidden');$('lobby').classList.remove('hidden');state.ws?.close();setTimeout(()=>{state.manualLeave=false;startSocket();},150);});
+$('ready-toggle').addEventListener('click',()=>send({type:'ready',value:!state.readyFlags[state.player]}));
+$('host-start').addEventListener('click',()=>send({type:'start'}));
+$('rematch').addEventListener('click',()=>send({type:'rematch'}));
+$('leave-end').addEventListener('click',()=>send({type:'leave'}));
+function finishLeaving(){state.manualLeave=true;state.room=null;state.player=null;state.game=null;state.moves=[];localStorage.removeItem('yut-room');$('game').classList.add('hidden');$('win-modal').classList.add('hidden');$('lobby').classList.remove('hidden');state.ws?.close();setTimeout(()=>{state.manualLeave=false;startSocket();},150);}
+$('leave').addEventListener('click',()=>send({type:'leave'}));
 if(initialInvite&&/^[A-Z0-9]{6}$/i.test(initialInvite)){$('room-input').value=initialInvite.toUpperCase();toast('초대받은 방 코드가 입력되었습니다. 이름을 확인한 뒤 입장하세요.');}board();startSocket();state.raf=requestAnimationFrame(animateGauge);window.addEventListener('beforeunload',()=>cancelAnimationFrame(state.raf));
 })();

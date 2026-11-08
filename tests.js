@@ -18,7 +18,39 @@ test('파워 게이지는 결과 조작하지 않음',()=>{const g=fill(createGa
 test('도착칸에 먼저 선 뒤 다음 이동으로 완주',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=19;roll(g,0,45,[1,0,0,0]);move(g,0,0,'outer',0,30);assert.equal(g.pieces[0][0].pos,30);roll(g,1,45,[1,0,0,0]);move(g,1,0,'outer',0,1); // dummy
  g.turn=0;g.phase='move';g.pending=[{id:99,steps:1,label:'도'}];
  const mv=move(g,0,0,'outer',0,'FIN');assert.equal(mv.choice.to,'FIN');assert.equal(g.pieces[0][0].pos,'FIN');});
-test('도착칸은 초과해도 멈춤',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=18;roll(g,0,45,[1,1,0,0]);move(g,0,0,'outer',0,30);assert.equal(g.pieces[0][0].pos,30);});
+test('도착 바로 전 칸에서는 도만 도착칸, 개·걸·윷·모는 완주',()=>{
+ for(const [count,target] of [[1,30],[2,'FIN'],[3,'FIN'],[4,'FIN'],[5,'FIN']]){
+  const g=fill(createGame('individual',2));g.pieces[0][0].pos=19;
+  g.phase='move';g.pending=[{id:1,steps:count,label:'시험'}];
+  assert.equal(movesFor(g,0).find(m=>m.piece===0).to,target);
+  const r=move(g,0,0,'outer',0,target);assert.equal(r.choice.to,target);
+  assert.equal(g.pieces[0][0].pos,target);
+ }
+});
+test('도착 전전 칸에서는 개만 도착칸, 걸 이상은 완주',()=>{
+ for(const [steps,target] of [[1,19],[2,30],[3,'FIN'],[4,'FIN'],[5,'FIN']]){
+  const g=fill(createGame('individual',2));g.pieces[0][0].pos=18;
+  g.phase='move';g.pending=[{id:1,steps,label:'시험'}];
+  assert.equal(movesFor(g,0).find(m=>m.piece===0).to,target);
+ }
+});
+test('중앙에서는 도·개·걸·윷·모별 목적지가 정확히 구분됨',()=>{
+ const g=fill(createGame('individual',2));g.pieces[0][0]={pos:23,route:'cut5fast'};
+ g.phase='move';g.pending=[1,2,3,4,5].map((steps,i)=>({id:i+1,steps,label:'시험'}));
+ const choices=movesFor(g,0).filter(x=>x.piece===0);
+ assert.deepEqual(choices.map(x=>x.to),[28,29,30,'FIN','FIN']);
+ assert.equal(choices.filter(x=>x.to===30).length,1);
+});
+test('잡기 가능한 윷 결과만 상대 말이 있는 목적지와 일치',()=>{
+ const g=fill(createGame('individual',2));g.pieces[0][0]={pos:23,route:'cut5fast'};
+ g.pieces[1][0].pos=30;
+ g.phase='move';g.pending=[1,2,3,4,5].map((steps,i)=>({id:i+1,steps,label:'시험'}));
+ const capturing=movesFor(g,0).filter(x=>x.piece===0&&x.to===g.pieces[1][0].pos);
+ assert.deepEqual(capturing.map(x=>x.steps),[3]);
+ const invalid=movesFor(g,0).find(x=>x.piece===0&&x.steps===5);
+ assert.equal(invalid.to,'FIN');
+ assert.throws(()=>move(g,0,0,invalid.route,4,30));
+});
 test('낙 시 결과 누적 없이 차례 변경',()=>{const g=fill(createGame('individual',2));roll(g,0,50,undefined,true);assert.equal(g.turn,1);assert.equal(g.roll.label,'낙');assert.equal(g.pending.length,0);});
 test('윷 추가 던지기의 낙은 이전 윷 결과 유지',()=>{const g=fill(createGame('individual',2));roll(g,0,50,[1,1,1,1]);roll(g,0,50,undefined,true);assert.equal(g.turn,0);assert.equal(g.phase,'move');assert.equal(g.pending.length,1);});
 

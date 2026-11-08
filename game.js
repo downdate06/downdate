@@ -38,7 +38,7 @@ function optionTo(route,piece,steps){
  if(at<-1)return null;
  const finishTileIndex=path.length-2; // 30
  const nextIndex=at+steps;
- const to=nextIndex>=finishTileIndex?30:path[nextIndex];
+ const to=nextIndex===finishTileIndex?30:nextIndex>finishTileIndex?'FIN':path[nextIndex];
  return {route,to,branch:route!==piece.route};
 }
 
