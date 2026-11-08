@@ -93,8 +93,8 @@ test('모 윷 도 누적 시 도 → 모 → 윷 순서로 새 말과 기존 말
  move(g,0,1,'outer',0,5);
  assert.equal(g.pieces[0][1].pos,5);
  assert.equal(g.pending[0].steps,4);
- move(g,0,1,'cut5',0,28);
- assert.equal(g.pieces[0][1].pos,28);
+ move(g,0,1,'cut5',0,24);
+ assert.equal(g.pieces[0][1].pos,24);
  assert.equal(g.pending.length,0);
 });
 test('모 윷 도 누적 시 윷 → 도 → 모 순서로 기존 말과 새 말 자유 선택',()=>{
@@ -112,17 +112,17 @@ test('모 윷 도 누적 시 윷 → 도 → 모 순서로 기존 말과 새 말
 test('빽도: 출발 후 도 위치에서 도착칸으로 이동',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=1;g.phase='move';g.pending=[{id:5,label:'빽도',steps:-1}];const option=movesFor(g,0).find(m=>m.piece===0);assert.equal(option.to,30);move(g,0,0,'outer',0,30);assert.equal(g.pieces[0][0].pos,30);});
 test('게임판 모퉁이 강제 지름길만 허용',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=5;g.phase='move';g.pending=[{id:4,label:'도',steps:1}];assert.deepEqual(movesFor(g,0).filter(x=>x.piece===0).map(x=>x.to),[21]);assert.throws(()=>move(g,0,0,'outer',0,6));move(g,0,0,'cut5',0,21);assert.equal(g.pieces[0][0].pos,21);});
 
-test('오른쪽 위에서 중앙을 지나면 오른쪽 아래로 이어짐',()=>{
+test('오른쪽 위에서 중앙을 통과하면 왼쪽 아래로 직진, 중앙 정지 때만 회전 가능',()=>{
  const fromUpperRight={pos:22,route:'cut5'};
- assert.deepEqual(optionsFor(fromUpperRight,3).map(m=>m.to),[29]);
+ assert.deepEqual(optionsFor(fromUpperRight,3).map(m=>m.to),[25]);
  const fromCenter={pos:23,route:'cut5'};
- assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to),[28]);
+ assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to).sort((a,b)=>a-b),[24,28]);
 });
-test('왼쪽 위에서 중앙을 지나면 왼쪽 아래로 이어짐',()=>{
+test('왼쪽 위에서 중앙을 통과하면 오른쪽 아래로 직진, 중앙 정지 때만 회전 가능',()=>{
  const fromUpperLeft={pos:27,route:'cut10'};
- assert.deepEqual(optionsFor(fromUpperLeft,3).map(m=>m.to),[25]);
+ assert.deepEqual(optionsFor(fromUpperLeft,3).map(m=>m.to),[29]);
  const fromCenter={pos:23,route:'cut10'};
- assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to),[24]);
+ assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to).sort((a,b)=>a-b),[24,28]);
 });
 test('중앙에서 오른쪽 아래로 도착할 때 이동과 잡기',()=>{
  const g=fill(createGame('individual',2));
@@ -133,6 +133,12 @@ test('중앙에서 오른쪽 아래로 도착할 때 이동과 잡기',()=>{
  const result=move(g,0,0,option.route,option.rollIndex,option.to);
  assert.equal(result.captured,1);
  assert.equal(g.pieces[1][0].pos,-1);
+});
+test('빽도는 별표가 있는 마지막 윷 하나의 뒷면으로 구분',()=>{
+ const g=fill(createGame('individual',2));g.pieces[0][0].pos=1;
+ const original=Math.random;let count=0;Math.random=()=>[.5,.9,.9,.9,.1][count++%5];
+ try{const r=roll(g,0,50);assert.equal(r.backdo,true);assert.equal(r.label,'빽도');assert.deepEqual(r.bits,[0,0,0,1]);}
+ finally{Math.random=original;}
 });
 console.log(tests+'개 테스트 통과');
 

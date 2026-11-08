@@ -1,6 +1,8 @@
 const OUTER=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,30,'FIN'];
-const CUT5=[1,2,3,4,5,21,22,23,28,29,30,'FIN'];
-const CUT10=[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30,'FIN'];
+// A throw that crosses the center continues along its entry diagonal.
+// Turning is permitted only if the piece actually stopped at node 23.
+const CUT5=[1,2,3,4,5,21,22,23,24,25,15,16,17,18,19,30,'FIN'];
+const CUT10=[1,2,3,4,5,6,7,8,9,10,26,27,23,28,29,30,'FIN'];
 const CUT5FAST=[1,2,3,4,5,21,22,23,28,29,30,'FIN'];
 const CUT10LONG=[1,2,3,4,5,6,7,8,9,10,26,27,23,24,25,15,16,17,18,19,30,'FIN'];
 const PATHS={outer:OUTER,cut5:CUT5,cut10:CUT10,cut5fast:CUT5FAST,cut10long:CUT10LONG};
@@ -17,8 +19,8 @@ function sameSide(game,a,b){return teamOf(game,a)===teamOf(game,b);}
 function routesFor(piece){
  if(piece.pos===5&&piece.route==='outer')return ['cut5'];
  if(piece.pos===10&&piece.route==='outer')return ['cut10'];
- if(piece.pos===23&&piece.route==='cut5')return ['cut5fast'];
- if(piece.pos===23&&piece.route==='cut10')return ['cut10long'];
+ if(piece.pos===23&&piece.route==='cut5')return ['cut5','cut5fast'];
+ if(piece.pos===23&&piece.route==='cut10')return ['cut10','cut10long'];
  return [piece.route];
 }
 
@@ -83,7 +85,7 @@ function roll(game,player,power=50,forcedBits,forcedNak=false){
  const bits=forcedBits||Array.from({length:4},()=>Math.random()<.5?1:0);
  if(bits.length!==4||bits.some(b=>b!==0&&b!==1))throw Error('잘못된 윷 결과입니다.');
  const count=bits.reduce((a,b)=>a+b,0),steps=count===0?5:count;
- const backdo=!forcedBits&&steps===1&&bits[0]===1;
+ const backdo=!forcedBits&&steps===1&&bits[3]===1;
  const moveSteps=backdo?-1:steps;
  const result={id:++game.throwNo,steps:moveSteps,label:LABELS[moveSteps],bits:[...bits],bonus:steps>=4,backdo};
  game.roll=result;game.pending.push(result);game.lastPower=Math.max(0,Math.min(100,Number(power)||0));

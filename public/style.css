@@ -107,3 +107,10 @@
 #timer-hint{font-size:11px;color:#748094}.turn-timer.urgent .timer-bar{background:#eb634c}.turn-timer.urgent .timer-top b{color:#ce3b35}
 .waiting-exit{display:block;margin:4px 0 14px;max-width:260px;background:#f3f5f8;color:#475875;border:1px solid #dfe4ef}
 @media(max-width:600px){.waiting-exit{max-width:unset;width:100%}.turn-timer{padding:10px 12px}.player-money{font-size:11px}}
+
+/* v3.6: camera-readable final face labels, only shown when the 3D movement ends */
+.throw-face-strip{position:absolute;left:50%;top:7px;transform:translateX(-50%);display:none;align-items:center;gap:5px;z-index:6;pointer-events:none;white-space:nowrap}
+.throw-face-strip.show{display:flex}
+.throw-face{border:1px solid #a06c36;border-radius:5px;background:#f3d5a3;color:#54351c;font-weight:950;font-size:11px;line-height:1.4;min-width:30px;text-align:center;padding:3px 5px;box-shadow:0 2px 5px #0003}
+.throw-face.back{background:#60391d;color:#fff2d3;border-color:#3d2517}
+.gauge-labels::after{content:'↔ 왕복 충전';font-weight:800;color:#566c92}
