@@ -126,7 +126,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
  if(r.deadline&&Date.now()>r.deadline)throw Error('제한시간이 끝났습니다.');
  if(msg.type==='roll'){
   if(r.rolling)throw Error('이미 윷을 던지는 중입니다.');
-  if(r.game.turn!==c.player||r.game.phase!=='roll')throw Error('지금은 윷을 던질 수 없습니다.');
+  if(r.game.turn!==c.player||!(r.game.phase==='roll'||(r.game.phase==='move'&&r.game.captureThrows>0)))throw Error('지금은 윷을 던질 수 없습니다.');
   r.rolling=true;
   try{
    await applyThrow(r,c.player,Number(msg.power)||0,false);
@@ -189,13 +189,13 @@ async function expireTurn(r){
   }else if(g.phase==='move'){
    if(r.autoMove){
     // The automatic roll was not followed by a chosen move within 10 seconds.
-    g.pending=[];g.phase='roll';g.turn=(p+1)%g.playerCount;r.turnSerial++;r.autoMove=false;
+    g.pending=[];g.captureThrows=0;g.captureRollReady=false;g.phase='roll';g.turn=(p+1)%g.playerCount;r.turnSerial++;r.autoMove=false;
     g.history.unshift(`${g.players[p].name} · 자동 투척 후 10초 경과 · 미이동으로 턴 종료`);
    }else{
     const options=movesFor(g,p);
     if(options.length){const choice=options[0];const oldTurn=g.turn;const info=move(g,p,choice.piece,choice.route,choice.rollIndex,choice.to);registerMove(r,p,info);if(oldTurn!==g.turn)r.turnSerial++;g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 자동 이동 (${choice.label})`);
      if(g.winner!==null)await finishRound(r);
-    }else{g.pending=[];g.phase='roll';g.turn=(p+1)%g.playerCount;r.turnSerial++;g.history.unshift('제한시간 초과 · 이동 불가로 차례 변경');}
+    }else{g.pending=[];g.phase='roll';if(!g.captureThrows){g.turn=(p+1)%g.playerCount;r.turnSerial++;}else g.captureRollReady=true;g.history.unshift('제한시간 초과 · 이동 불가');}
    }
   }
   if(g.winner!==null)r.deadline=null;else r.deadline=Date.now()+TURN_MS;

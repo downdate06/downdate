@@ -11,7 +11,7 @@ const LABELS={1:'도',2:'개',3:'걸',4:'윷',5:'모','-1':'빽도'};
 function createGame(mode='individual',playerCount=4){
  if(!['individual','team'].includes(mode))throw Error('잘못된 경기 방식입니다.');
  if(!Number.isInteger(playerCount)||playerCount<2||playerCount>4||(mode==='team'&&playerCount!==4))throw Error('개인전은 2~4명, 팀전은 4명만 가능합니다.');
- return {mode,playerCount,players:Array.from({length:playerCount},()=>({name:'',connected:false})),pieces:Array.from({length:playerCount},()=>Array.from({length:4},()=>({pos:-1,route:'outer'}))),turn:0,phase:'roll',roll:null,pending:[],winner:null,history:[],moveNo:0,throwNo:0,lastPower:0};
+ return {mode,playerCount,players:Array.from({length:playerCount},()=>({name:'',connected:false})),pieces:Array.from({length:playerCount},()=>Array.from({length:4},()=>({pos:-1,route:'outer'}))),turn:0,phase:'roll',roll:null,pending:[],captureThrows:0,captureRollReady:false,winner:null,history:[],moveNo:0,throwNo:0,lastPower:0};
 }
 function teamOf(game,player){return game.mode==='team'?player%2:player;}
 function sameSide(game,a,b){return teamOf(game,a)===teamOf(game,b);}
@@ -88,7 +88,10 @@ function movesFor(game,player){
 }
 
 function roll(game,player,power=50,forcedBits,forcedNak=false){
- if(game.turn!==player||game.phase!=='roll'||game.winner!==null)throw Error('지금은 윷을 던질 수 없습니다.');
+ const deferredCapture=game.captureThrows>0&&(game.phase==='move'||(game.phase==='roll'&&game.captureRollReady));
+ if(game.turn!==player||(!deferredCapture&&game.phase!=='roll')||game.winner!==null)throw Error('지금은 윷을 던질 수 없습니다.');
+ if(deferredCapture)game.captureThrows--;
+ game.captureRollReady=false;
  const nak=forcedNak || (!forcedBits && Math.random()<0.055);
  if(nak){
   const result={id:++game.throwNo,steps:0,label:'낙',bits:[],bonus:false,nak:true};
@@ -96,6 +99,7 @@ function roll(game,player,power=50,forcedBits,forcedNak=false){
   game.history.unshift(`${game.players[player].name} · 낙! 던진 윷이 판 밖으로 떨어졌습니다.`);
   game.history=game.history.slice(0,14);
   if(game.pending.length){game.phase='move';}
+  else if(game.captureThrows){game.phase='roll';game.captureRollReady=true;}
   else{game.phase='roll';game.turn=(player+1)%game.players.length;}
   return result;
  }
@@ -107,7 +111,7 @@ function roll(game,player,power=50,forcedBits,forcedNak=false){
  const result={id:++game.throwNo,steps:moveSteps,label:LABELS[moveSteps],bits:[...bits],bonus:steps>=4,backdo};
  game.roll=result;game.pending.push(result);game.lastPower=Math.max(0,Math.min(100,Number(power)||0));
  game.phase=result.bonus?'roll':'move';
- if(game.phase==='move'&&!movesFor(game,player).length){game.pending=[];game.turn=(player+1)%game.players.length;game.phase='roll';}
+ if(game.phase==='move'&&!movesFor(game,player).length){game.pending=[];game.phase='roll';if(game.captureThrows)game.captureRollReady=true;else game.turn=(player+1)%game.players.length;}
  game.history.unshift(`${game.players[player].name} · ${result.label}!${result.bonus?' 추가 던지기!':''}`);
  game.history=game.history.slice(0,14);
  return result;
@@ -133,17 +137,19 @@ function move(game,player,pieceIndex,route,rollIndex=0,target){
  game.history=game.history.slice(0,14);
  const side=teamOf(game,player),sidePlayers=game.players.map((_,i)=>i).filter(i=>teamOf(game,i)===side);
  if(sidePlayers.every(i=>game.pieces[i].every(p=>p.pos==='FIN'))){
-  game.winner=side;game.phase='ended';game.roll=null;game.pending=[];
+  game.winner=side;game.phase='ended';game.roll=null;game.pending=[];game.captureThrows=0;game.captureRollReady=false;
   game.history.unshift(`🏆 ${game.mode==='team'?(side===0?'청팀':'홍팀'):game.players[player].name} 승리!`);
  }
- else if(captured && choice.steps<4){
-  game.phase='roll';
- }
- else if(game.pending.length){
+ else {
+  if(captured && choice.steps<4)game.captureThrows++;
+  if(game.pending.length){
   game.phase='move';
  }
- else{
-  game.phase='roll';game.turn=(player+1)%game.players.length;
+ else if(game.captureThrows){
+   game.phase='roll';game.captureRollReady=true;
+  }else{
+   game.phase='roll';game.turn=(player+1)%game.players.length;
+  }
  }
  return {captured,moved:moved.length,movedPieces:moved,victims,source,choice};
 }

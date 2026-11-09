@@ -68,7 +68,7 @@ test('모·도 누적 후 도로 잡으면 추가 던지고 남은 모든 결과
  const g=fill(createGame('individual',2));g.pieces[1][0].pos=1;
  roll(g,0,50,[0,0,0,0]);roll(g,0,50,[1,0,0,0]);
  const capture=move(g,0,0,'outer',1,1);assert.equal(capture.captured,1);
- assert.equal(g.pending.length,1);assert.equal(g.pending[0].steps,5);assert.equal(g.phase,'roll');
+ assert.equal(g.pending.length,1);assert.equal(g.pending[0].steps,5);assert.equal(g.phase,'move');assert.equal(g.captureThrows,1);
  roll(g,0,50,[1,1,0,0]);assert.equal(g.pending.length,2);
  assert.deepEqual(g.pending.map(r=>r.steps),[5,2]);
  assert.equal(g.phase,'move');
@@ -155,5 +155,25 @@ test('중앙 정지 후 도·개 이동은 양쪽 출발 경로 모두 오른쪽
   assert.deepEqual(optionsFor({pos:23,route},2).map(m=>m.to),[29]);
  }
 });
-console.log(tests+'개 테스트 통과');
+test('잡은 뒤 남은 결과로 먼저 이동하고 마지막에 보너스 던지기',()=>{
+ const g=fill(createGame('individual',2));g.pieces[1][0].pos=1;
+ roll(g,0,40,[0,0,0,0]);roll(g,0,40,[1,0,0,0]);
+ move(g,0,0,'outer',1,1);
+ assert.equal(g.phase,'move');assert.equal(g.captureThrows,1);assert.equal(g.pending.length,1);
+ move(g,0,1,'outer',0,5);
+ assert.equal(g.phase,'roll');assert.equal(g.turn,0);assert.equal(g.captureThrows,1);
+ roll(g,0,50,[1,1,0,0]);
+ assert.equal(g.captureThrows,0);
+ assert.equal(g.phase,'move');assert.equal(g.pending.length,1);
+ move(g,0,1,'cut5',0,22);
+ assert.equal(g.phase,'roll');assert.equal(g.turn,1);
+});
+test('잡은 뒤 보너스 투척을 먼저 해도 기존 결과 유지',()=>{
+ const g=fill(createGame('individual',2));g.pieces[1][0].pos=1;
+ roll(g,0,30,[0,0,0,0]);roll(g,0,30,[1,0,0,0]);move(g,0,0,'outer',1,1);
+ assert.equal(g.phase,'move');assert.equal(g.captureThrows,1);
+ roll(g,0,25,[1,1,0,0]);
+ assert.equal(g.captureThrows,0);assert.deepEqual(g.pending.map(x=>x.steps),[5,2]);
+});
 
+console.log(tests+'개 테스트 통과');
