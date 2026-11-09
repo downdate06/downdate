@@ -3,7 +3,8 @@ import {simulateThrow,checkLanding} from './throw-physics.mjs';
 let naks=0,fronts=0,throws=240;
 for(let n=0;n<throws;n++){
  const r=simulateThrow([0,50,100][n%3],n+1337);
- assert.equal(r.frames.length,111);
+ assert(r.frames.length>=2&&r.frames.length<111,'Static end frames should be trimmed');
+ assert.equal(r.durationMs,(r.frames.length-1)*50);
  assert.equal(r.frames.at(-1).length,4);
  assert(r.frames.every(f=>f.every(v=>v.length===7&&v.every(Number.isFinite))));
  assert.equal(r.nak,r.outside.some(Boolean));

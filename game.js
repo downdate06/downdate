@@ -19,8 +19,10 @@ function sameSide(game,a,b){return teamOf(game,a)===teamOf(game,b);}
 function routesFor(piece){
  if(piece.pos===5&&piece.route==='outer')return ['cut5'];
  if(piece.pos===10&&piece.route==='outer')return ['cut10'];
- if(piece.pos===23&&piece.route==='cut5')return ['cut5','cut5fast'];
- if(piece.pos===23&&piece.route==='cut10')return ['cut10','cut10long'];
+ // Once a piece STOPS at center, the next move always exits to lower-right.
+ // Merely crossing center preserves the incoming diagonal.
+ if(piece.pos===23&&piece.route==='cut5')return ['cut5fast'];
+ if(piece.pos===23&&piece.route==='cut10')return ['cut10'];
  return [piece.route];
 }
 
@@ -46,6 +48,21 @@ function optionTo(route,piece,steps){
 
 function optionsFor(piece,steps){
  if(piece.pos==='FIN' || steps===0)return [];
+ // From the exact center, back-do can go to either upper diagonal node.
+ // 27 is upper-left; 22 is upper-right on the rendered board.
+ if(piece.pos===23&&steps===-1)return [
+  {route:'cut10',to:27,branch:true,direction:'왼쪽 위'},
+  {route:'cut5fast',to:22,branch:true,direction:'오른쪽 위'}
+ ];
+ // Back-do at the bottom-left corner or the finish tile also branches.
+ if(piece.pos===15&&steps===-1)return [
+  {route:'outer',to:14,branch:true,direction:'위쪽'},
+  {route:'cut5',to:25,branch:true,direction:'오른쪽 위'}
+ ];
+ if(piece.pos===30&&steps===-1)return [
+  {route:'outer',to:19,branch:true,direction:'왼쪽'},
+  {route:'cut10',to:29,branch:true,direction:'왼쪽 위'}
+ ];
  const results=[];
  for(const route of routesFor(piece)){
   const option=optionTo(route,piece,steps);
@@ -103,11 +120,11 @@ function move(game,player,pieceIndex,route,rollIndex=0,target){
  const own=game.pieces[player],source=own[pieceIndex].pos;
  const moved=source===-1?[pieceIndex]:own.map((p,i)=>p.pos===source?i:-1).filter(i=>i>=0);
  for(const index of moved){own[index].pos=choice.to;own[index].route=choice.route;}
- let captured=0;
+ let captured=0;const victims=[];
  if(choice.to!=='FIN'){
   for(let other=0;other<game.players.length;other++){
    if(sameSide(game,player,other))continue;
-   for(const enemy of game.pieces[other])if(enemy.pos===choice.to){enemy.pos=-1;enemy.route='outer';captured++;}
+   for(let j=0;j<game.pieces[other].length;j++){const enemy=game.pieces[other][j];if(enemy.pos===choice.to){enemy.pos=-1;enemy.route='outer';captured++;victims.push({player:other,piece:j});}}
   }
  }
  game.pending.splice(rollIndex,1);
@@ -128,7 +145,7 @@ function move(game,player,pieceIndex,route,rollIndex=0,target){
  else{
   game.phase='roll';game.turn=(player+1)%game.players.length;
  }
- return {captured,moved:moved.length,choice};
+ return {captured,moved:moved.length,movedPieces:moved,victims,source,choice};
 }
 
 module.exports={createGame,teamOf,sameSide,optionsFor,movesFor,roll,move,PATHS};

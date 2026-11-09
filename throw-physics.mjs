@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
-const RADIUS=2.95;
+// Match the visible top of the round wooden throw disc (radius 3.02).
+const RADIUS=3.02;
 const STEP=1/60;
 const TOTAL=330;
 const ROUND=n=>Math.round(n*10000)/10000;
@@ -29,6 +30,30 @@ function pose(stick){
   const q=quat(stick.yaw,stick.spin,stick.lean);
   return [ROUND(stick.x),ROUND(stick.y),ROUND(stick.z),...q.map(ROUND)];
 }
+function stickGap(a,b){
+  // Closest horizontal distance between two oriented wooden rods.
+  const half=.55;
+  const ax=Math.sin(a.yaw)*half,az=Math.cos(a.yaw)*half;
+  const bx=Math.sin(b.yaw)*half,bz=Math.cos(b.yaw)*half;
+  const pointToSegment=(px,pz,cx,cz,dx,dz)=>{
+    const t=clamp(((px-cx)*dx+(pz-cz)*dz)/(dx*dx+dz*dz),0,1);
+    return Math.hypot(px-cx-t*dx,pz-cz-t*dz);
+  };
+  const a0x=a.x-ax,a0z=a.z-az,b0x=b.x-bx,b0z=b.z-bz;
+  const adx=2*ax,adz=2*az,bdx=2*bx,bdz=2*bz;
+  const cross=(ux,uz,vx,vz)=>ux*vz-uz*vx;
+  const den=cross(adx,adz,bdx,bdz);
+  if(Math.abs(den)>1e-7){
+    const rx=b0x-a0x,rz=b0z-a0z;
+    const t=cross(rx,rz,bdx,bdz)/den,u=cross(rx,rz,adx,adz)/den;
+    if(t>=0&&t<=1&&u>=0&&u<=1)return 0;
+  }
+  return Math.min(
+    pointToSegment(a0x,a0z,b0x,b0z,bdx,bdz),
+    pointToSegment(a.x+ax,a.z+az,b0x,b0z,bdx,bdz),
+    pointToSegment(b0x,b0z,a0x,a0z,adx,adz),
+    pointToSegment(b.x+bx,b.z+bz,a0x,a0z,adx,adz));
+}
 function endsOutside(stick){
   const half=.64;
   const dx=Math.sin(stick.yaw)*half,dz=Math.cos(stick.yaw)*half;
@@ -45,7 +70,7 @@ function throwOnce(power,seed){
   }));
   const frames=[];
   for(let step=0;step<=TOTAL;step++){
-    if(step>0){
+    if(step>0 && step<296){
       const t=step*STEP;
       for(const b of sticks){
         b.vy-=13.5*STEP;
@@ -86,8 +111,30 @@ function throwOnce(power,seed){
       // This gives visible knock-on contact without an artificial second bounce impulse.
       for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){
         const a=sticks[i],b=sticks[j];
-        if(Math.abs(a.y-b.y)>.30)continue;
+        if(Math.abs(a.y-b.y)>.38)continue;
         const dx=b.x-a.x,dz=b.z-a.z,dist=Math.hypot(dx,dz);
+        if(dist>=1.45)continue;
+        const gap=stickGap(a,b);
+        if(gap<.20 && !a.off && !b.off){
+          // Prevent rods from visually passing through each other at crossing
+          // points: the higher rod rests briefly on the lower rod.
+          const upper=(a.y>b.y+.025 || (Math.abs(a.y-b.y)<.025&&i>j))?a:b;
+          const lower=upper===a?b:a;
+          const supported=lower.y+.205;
+          if(upper.y<supported && upper.y>lower.y-.08){
+            upper.y=supported;
+            if(upper.vy<0)upper.vy=0;
+            upper.vx*=.97;upper.vz*=.97;
+            const delta=wrap(restingSpin(upper.spin)-upper.spin);
+            upper.omega+=delta*13*STEP;
+            upper.omega*=.89;
+            upper.spin+=delta*.05;
+            upper.lean*=.90;
+            if(Math.abs(delta)<.01 && Math.abs(upper.omega)<.03){upper.spin=restingSpin(upper.spin);upper.omega=0;}
+          }
+          // While vertically stacked, do not also apply lateral separation.
+          if(upper.y-lower.y>.15)continue;
+        }
         if(dist>=.39||dist<1e-7)continue;
         const nx=dx/dist,nz=dz/dist,overlap=(.39-dist)*.5;
         a.x-=nx*overlap;b.x+=nx*overlap;
@@ -104,7 +151,24 @@ function throwOnce(power,seed){
   }
   const outside=sticks.map(b=>b.off||endsOutside(b));
   const bits=sticks.map(b=>-Math.sin(b.spin)>=0?1:0);
-  return {frames,bits,nak:outside.some(Boolean),outside,durationMs:TOTAL*1000/60,
+  // Trim the long static tail of the simulation; preserve the exact final pose.
+  // Frames are sampled every 3 physics ticks (50 ms).
+  let lastMotion=1;
+  for(let i=1;i<frames.length;i++){
+    let moving=false;
+    for(let j=0;j<4&&!moving;j++){
+      for(let k=0;k<7;k++){
+        const threshold=k<3?.005:.002;
+        if(Math.abs(frames[i][j][k]-frames[i-1][j][k])>threshold){moving=true;break;}
+      }
+    }
+    if(moving)lastMotion=i;
+  }
+  const frameEnd=Math.min(frames.length-1,lastMotion+7);
+  const trimmed=frames.slice(0,frameEnd+1);
+  // The last replay frame is ALWAYS the actual final server-simulated pose.
+  trimmed[trimmed.length-1]=frames[frames.length-1];
+  return {frames:trimmed,bits,nak:outside.some(Boolean),outside,durationMs:(trimmed.length-1)*50,
     physics:'server-ground-contact',seed};
 }
 export function simulateThrow(power=50,seed=randomBytes(4).readUInt32LE(0)){

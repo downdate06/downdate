@@ -114,3 +114,17 @@
 .throw-face{border:1px solid #a06c36;border-radius:5px;background:#f3d5a3;color:#54351c;font-weight:950;font-size:11px;line-height:1.4;min-width:30px;text-align:center;padding:3px 5px;box-shadow:0 2px 5px #0003}
 .throw-face.back{background:#60391d;color:#fff2d3;border-color:#3d2517}
 .gauge-labels::after{content:'↔ 왕복 충전';font-weight:800;color:#566c92}
+
+/* v4.0 — move selection can be cancelled before submitting a destination. */
+.piece-selection-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.piece-selection-row .selection-status{flex:1;margin:6px 0}
+.cancel-piece{font-size:13px;padding:8px 12px;background:#fff;color:#31496a;border:1px solid #8799b8;border-radius:9px;cursor:pointer;white-space:nowrap}
+.cancel-piece:hover{background:#edf3ff}
+.cancel-piece.hidden{display:none!important}
+
+/* v4.1: visually distinguish two center back-do targets */
+.board-target.backdo-direction { outline:3px solid #356bc4; outline-offset:2px; min-width:56px; }
+.board-target.backdo-direction small { font-weight:800; font-size:10px; white-space:nowrap; }
+
+/* v4.2 public rulebook and server-driven match economy */
+.rulebook{margin-top:22px;padding:18px;border:1px solid #e2d5ba;background:#fffdf6;border-radius:16px}.rulebook-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.rulebook-heading h2{margin:4px 0;font-size:19px}.rules-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:15px 0}.rules-tab{flex:1;padding:10px;border-radius:9px;border:1px solid #d8ddeb;background:white;font-weight:750;color:#41516b}.rules-tab.active{background:#20365b;color:#fff}.rule-article{line-height:1.8;font-size:13px;color:#40506a}.rule-article h3{color:#233b59;margin:17px 0 7px}.rule-article p{margin:5px 0}.rule-table{width:100%;border-collapse:collapse;font-size:12px}.rule-table th,.rule-table td{padding:9px 6px;text-align:left;border-bottom:1px solid #ece4d8}.rule-table th{background:#f4eddf}.mission-filters{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.mission-filters input,.mission-filters select{border-radius:8px;border:1px solid #ccd4dc;padding:9px;min-width:0}.mission-filters input{flex:1}.mission-list{max-height:420px;overflow-y:auto}.mission-list-item{padding:12px;border-bottom:1px solid #e5e9ed}.mission-list-item b{font-size:13px}.mission-list-item p{font-size:12px;color:#607084;margin:4px 0}.mission-list-item small{font-size:11px;color:#966e36}.match-economy,.mission-panel{background:#fff;border:1px solid #e5e0d4;border-radius:15px;padding:14px;margin-bottom:13px;box-shadow:0 3px 10px #0000000c}.match-economy h3,.mission-panel h3{margin:0 0 9px;font-size:15px}.economy-row,.mission-row{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:8px;font-size:12px}.economy-row span,.mission-row span{color:#718093}.mission-entry{padding:9px 2px;border-bottom:1px solid #e5e6ea}.mission-entry strong{font-size:12px}.mission-entry p{margin:4px 0;font-size:11px;color:#708092}.mission-entry.done{color:#216744}.mission-entry.done strong:before{content:'✓ ';color:#249257}.mission-panel .mission-head{display:flex;align-items:center;justify-content:space-between}.mission-panel .mission-subhead{font-size:11px;color:#89919d;margin-top:10px}.mission-badge{border-radius:5px;background:#f9e9be;color:#885c21;font-size:11px;padding:3px 6px;white-space:nowrap}@media(max-width:600px){.rulebook{padding:13px}.rulebook-heading h2{font-size:16px}.rulebook-heading{flex-wrap:wrap}.rules-tab{font-size:12px;padding:9px 4px}}

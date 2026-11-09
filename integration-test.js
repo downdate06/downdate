@@ -3,7 +3,7 @@ const assert=require('assert/strict');
 const fs=require('fs');
 const port=37923;
 const file='/tmp/yut29-accounts-'+process.pid+'.json';
-const child=spawn(process.execPath,['server.js'],{cwd:__dirname,env:{...process.env,PORT:String(port),DATA_FILE:file}});
+const child=spawn(process.execPath,['server.js'],{cwd:__dirname,env:{...process.env,PORT:String(port),DATA_FILE:file,DATABASE_URL:''}});
 let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
 function delay(t){return new Promise(r=>setTimeout(r,t));}
 function inbox(url){return new Promise((resolve,reject)=>{const ws=new WebSocket(url);const q=[];const pending=[];ws.onmessage=e=>{const obj=JSON.parse(e.data);if(pending.length)pending.shift()(obj);else q.push(obj);};ws.onerror=reject;ws.onopen=()=>resolve({ws,send:o=>ws.send(JSON.stringify(o)),next:()=>q.length?Promise.resolve(q.shift()):new Promise(r=>pending.push(r))});});}
@@ -17,11 +17,11 @@ async function wait(t,msg){const until=Date.now()+t;while(Date.now()<until){cons
  assert.equal((await a.next()).type,'hello');assert.equal((await b.next()).type,'hello');
  a.send({type:'create',mode:'team',playerCount:4,stake:0});const teamError=await a.next();assert.equal(teamError.type,'error');assert.match(teamError.message,/팀전.*개발 중/);
  a.send({type:'create',mode:'individual',playerCount:2,stake:1000});let s=await a.next();assert.equal(s.type,'state');assert.equal(s.started,false);const room=s.room;
- b.send({type:'join',room});s=await b.next();assert.equal(s.started,false);assert.equal(s.account.balance,1000);s=await a.next();assert.equal(s.account.balance,1000);
+ b.send({type:'join',room});s=await b.next();assert.equal(s.started,false);assert.equal(s.account.balance,10000);s=await a.next();assert.equal(s.account.balance,10000);
  a.send({type:'start'});assert.match((await a.next()).message,/준비/);
  a.send({type:'ready',value:true});await a.next();await b.next();
  b.send({type:'ready',value:true});await a.next();s=await b.next();assert.deepEqual(s.ready,[true,true]);
- a.send({type:'start'});s=await a.next();assert.equal(s.type,'state');assert.equal(s.started,true);assert.equal(s.account.balance,0);s=await b.next();assert.equal(s.account.balance,0);
+ a.send({type:'start'});s=await a.next();assert.equal(s.type,'state');assert.equal(s.started,true);assert.equal(s.account.balance,8000);s=await b.next();assert.equal(s.account.balance,8000);
  a.send({type:'start'});assert.match((await a.next()).message,/이미/);
  a.send({type:'roll',power:45});s=await a.next();assert.equal(s.type,'state');assert(s.game.revealAt>Date.now());await b.next();
  a.send({type:'roll',power:45});assert.match((await a.next()).message,/멈춘 뒤/);

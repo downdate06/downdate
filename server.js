@@ -1,9 +1,11 @@
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const {createGame,movesFor,roll,move,teamOf}=require('./game');
 const auth=require('./auth');
+const {CATALOG,selectMissions,record,publicView}=require('./missions');
+const economyRules=require('./economy');
 const PORT=Number(process.env.PORT)||3000,HOST=process.env.HOST||'0.0.0.0';
 const PUBLIC=path.join(__dirname,'public'),rooms=new Map(),clients=new Set();
-const TURN_MS=20000;
+const TURN_MS=Number(process.env.YUT_TURN_MS)||20000, AUTO_MOVE_MS=Number(process.env.YUT_AUTO_MOVE_MS)||10000;
 const throwPhysics = import('./throw-physics.mjs');
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
 function response(res,code,payload){res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(payload));}
@@ -11,6 +13,8 @@ async function body(req){let txt='';for await(const chunk of req){txt+=chunk;if(
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost'),pathname=decodeURIComponent(url.pathname);
  if(pathname==='/health')return response(res,200,{ok:true,rooms:rooms.size,accountsPersistent:auth.isPersistent()});
+ if(pathname==='/api/rules')return response(res,200,{stakes:[0,1000,5000,10000],entryMultiplier:2,missionShare:.1,missions:CATALOG});
+ if(pathname==='/api/mission-stats')return response(res,200,{stats:await auth.missionStats()});
  if(pathname.startsWith('/api/')){
   if(req.method==='POST'&&pathname==='/api/register')return response(res,200,await auth.register(...((x)=>[x.name,x.password])(await body(req))));
   if(req.method==='POST'&&pathname==='/api/login')return response(res,200,await auth.login(...((x)=>[x.name,x.password])(await body(req))));
@@ -27,7 +31,7 @@ const server=http.createServer(async(req,res)=>{try{
  }catch(e){response(res,400,{error:e.message});}});
 function frame(data,opcode=1){const buf=Buffer.isBuffer(data)?data:Buffer.from(data);const n=buf.length;let head;if(n<126){head=Buffer.alloc(2);head[1]=n;}else if(n<65536){head=Buffer.alloc(4);head[1]=126;head.writeUInt16BE(n,2);}else{head=Buffer.alloc(10);head[1]=127;head.writeBigUInt64BE(BigInt(n),2);}head[0]=0x80|opcode;return Buffer.concat([head,buf]);}
 function send(c,obj){if(!c.socket.destroyed)try{c.socket.write(frame(JSON.stringify(obj)));}catch{}}
-function stateFor(r,c){return {type:'state',room:r.code,player:c.player,game:r.game,moves:c.player===null?[]:movesFor(r.game,c.player),stake:r.stake,started:r.started,ready:r.ready,host:0,account:auth.safe(auth.get(c.accountId)),balances:r.accountIds.map(id=>id?auth.get(id)?.balance??null:null),deadline:r.deadline||null,serverNow:Date.now(),turnSeconds:20};}
+function stateFor(r,c){return {type:'state',room:r.code,player:c.player,game:r.game,moves:c.player===null?[]:movesFor(r.game,c.player),stake:r.stake,started:r.started,ready:r.ready,host:r.host??0,autoMove:r.autoMove||false,account:auth.safe(auth.get(c.accountId)),balances:r.accountIds.map(id=>id?auth.get(id)?.balance??null:null),deadline:r.deadline||null,serverNow:Date.now(),turnSeconds:(r.autoMove?AUTO_MOVE_MS:TURN_MS)/1000,missions:publicView(r.missions,c.player),economy:r.economy?{stake:r.stake,entryCost:r.economy.entryCost,finePot:r.economy.finePot,fineSpent:r.economy.fineSpent,events:r.economy.events,payouts:r.economy.payouts}:null};}
 function broadcast(r){for(const c of clients)if(c.room===r.code)send(c,stateFor(r,c));}
 function error(c,msg){send(c,{type:'error',message:msg});}
 function cleanName(x){return String(x||'플레이어').trim().slice(0,12)||'플레이어';}
@@ -40,17 +44,32 @@ async function startIfReady(r){
  if(!allReady(r))throw Error('모든 참가자가 준비해야 시작할 수 있습니다.');
  r.starting=true;
  try{
+  const missionStats=await auth.missionStats();
+  const chosenMissions=selectMissions(r.game.playerCount,crypto.randomBytes(4).readUInt32BE(0),missionStats);
   if(r.stake){
    const ids=r.accountIds;
    if(ids.some(x=>!x)||new Set(ids).size!==ids.length)throw Error('게임머니 대전은 모두 서로 다른 계정이 필요합니다.');
-   await auth.debit(ids,r.stake);
+   await auth.lockMatch(r.matchId,ids,r.stake);
   }
+  r.missions=chosenMissions;
+  r.economy=economyRules.initEconomy(r.game.playerCount,r.stake);
+  r.turnSerial=0;
   r.started=true;
-  r.deadline=Date.now()+TURN_MS;
-  r.game.history.unshift(r.stake?`참가자 전원 준비 · ${r.stake.toLocaleString('ko-KR')} 머니씩 차감 · 게임 시작!`:'참가자 전원 준비 · 게임 시작!');
+  r.deadline=Date.now()+TURN_MS;r.autoMove=false;
+  r.game.history.unshift(r.stake?`참가자 전원 준비 · ${(r.stake*2).toLocaleString('ko-KR')} 머니씩 참가비+예치금 차감 · 게임 시작!`:'참가자 전원 준비 · 게임 시작!');
  }finally{r.starting=false;}
 }
 
+function missionEvent(r,p,event){if(!r.missions)return;const hits=record(r.missions,r.game,p,event);for(const h of hits)if(h.kind==='common')r.game.history.unshift(`${r.game.players[h.player].name} · 공통 미션 달성: ${require('./missions').CATALOG_MAP.get(h.id).title}`);r.game.history=r.game.history.slice(0,14);}
+async function finishRound(r){if(!r.economy||r.settled||r.settling||r.game.winner===null)return;r.settling=true;try{if(r.stake){const payout=economyRules.settle(r.economy,r.missions.scores,r.game.winner);await auth.finishMatch(r.matchId,r.accountIds,r.stake,payout,r.game.winner);}r.settled=true;void auth.recordMissionStats(r.missions);}finally{r.settling=false;}}
+function registerMove(r,player,info){const g=r.game;const counter=r.missions?.counters[player];const event={kind:'move',piece:info.choice.piece,steps:info.choice.steps,route:info.choice.route,branch:info.choice.branch,to:info.choice.to,source:info.source,moved:info.moved,stackSize:g.pieces[player].filter(x=>x.pos===info.choice.to).length,captured:info.captured,victims:info.victims,turn:r.turnSerial,capturedBefore:counter?.hasCapturePiece.includes(info.choice.piece)||false,caughtBefore:counter?.caughtPieces.includes(info.choice.piece)||false};
+ missionEvent(r,player,event);
+ for(const victim of info.victims){missionEvent(r,victim.player,{kind:'caught',caught:1,pieces:[victim.piece],by:player,turn:r.turnSerial});}
+ if(info.captured){const fines=economyRules.captured(r.economy,player,info.victims,r.turnSerial);for(const f of fines)if(f.paid)g.history.unshift(`${g.players[f.player].name} · ${f.number}개 잡힘 / 벌금 ${f.paid.toLocaleString('ko-KR')}머니 · 벌금 풀 적립`);}
+ if(event.to==='FIN')for(let i=0;i<g.playerCount;i++)if(i!==player)missionEvent(r,i,{kind:'enemy_finished',turn:r.turnSerial});
+ if(g.winner!==null)missionEvent(r,player,{kind:'win',turn:r.turnSerial});
+ g.history=g.history.slice(0,14);
+}
 async function handle(c,msg){if(!msg||typeof msg!=='object')return;
  try{
  if(msg.type==='create'){
@@ -58,13 +77,15 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
   if(mode==='team')throw Error('팀전은 현재 개발 중입니다. 개인전을 선택해 주세요.');
   if(![0,1000,5000,10000].includes(stake))throw Error('잘못된 게임머니 설정입니다.');
   if(stake&&!c.accountId)throw Error('가상 머니 대전은 로그인이 필요합니다.');
+  if(stake&&auth.get(c.accountId)?.balance<economyRules.entryCost(stake))throw Error('참가비와 벌금 예치금 합계 '+economyRules.entryCost(stake).toLocaleString('ko-KR')+' 머니가 필요합니다.');
   const id=code(),g=createGame(mode,n);g.players[0].name=c.accountId?auth.get(c.accountId).name:cleanName(msg.name);g.players[0].connected=true;
-  const r={code:id,game:g,owners:Array.from({length:n},(_,i)=>i===0?c.session:null),accountIds:Array.from({length:n},(_,i)=>i===0?c.accountId:null),stake,started:false,starting:false,ready:Array(n).fill(false),settled:false,deadline:null,updated:Date.now()};rooms.set(id,r);c.room=id;c.player=0;broadcast(r);return;
+  const r={code:id,game:g,owners:Array.from({length:n},(_,i)=>i===0?c.session:null),accountIds:Array.from({length:n},(_,i)=>i===0?c.accountId:null),stake,started:false,starting:false,ready:Array(n).fill(false),settled:false,deadline:null,host:0,joinOrder:Array.from({length:n},(_,i)=>i===0?1:null),nextJoinOrder:2,autoMove:false,updated:Date.now(),round:1,matchId:id+'-1',missions:null,economy:null,turnSerial:0};rooms.set(id,r);c.room=id;c.player=0;broadcast(r);return;
  }
  if(msg.type==='join'){
   const id=String(msg.room||'').trim().toUpperCase(),r=rooms.get(id);if(!r)throw Error('방을 찾을 수 없습니다. 방 코드를 확인해 주세요.');
   if(r.stake&&!c.accountId)throw Error('게임머니 방은 로그인 후 입장할 수 있습니다.');
-  let slot=r.owners.indexOf(c.session);if(slot===-1){if(r.started)throw Error('이미 진행 중인 게임입니다.');slot=r.owners.indexOf(null);if(slot===-1)throw Error('이 방은 정원이 '+r.game.playerCount+'명입니다.');if(c.accountId&&r.accountIds.includes(c.accountId))throw Error('동일 계정으로 중복 입장할 수 없습니다.');r.owners[slot]=c.session;r.accountIds[slot]=c.accountId;r.game.players[slot].name=c.accountId?auth.get(c.accountId).name:cleanName(msg.name);r.ready[slot]=false;}
+  if(r.stake&&auth.get(c.accountId)?.balance<economyRules.entryCost(r.stake))throw Error('이 방의 참가비와 벌금 예치금을 합한 게임머니가 부족합니다.');
+  let slot=r.owners.indexOf(c.session);if(slot===-1){if(r.started)throw Error('이미 진행 중인 게임입니다.');slot=r.owners.indexOf(null);if(slot===-1)throw Error('이 방은 정원이 '+r.game.playerCount+'명입니다.');if(c.accountId&&r.accountIds.includes(c.accountId))throw Error('동일 계정으로 중복 입장할 수 없습니다.');r.owners[slot]=c.session;r.joinOrder[slot]=r.nextJoinOrder++;r.accountIds[slot]=c.accountId;r.game.players[slot].name=c.accountId?auth.get(c.accountId).name:cleanName(msg.name);r.ready[slot]=false;}
   c.room=id;c.player=slot;r.game.players[slot].connected=true;r.updated=Date.now();
   broadcast(r);return;
  }
@@ -75,15 +96,28 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
   broadcast(r);return;
  }
  if(msg.type==='start'){
-  if(c.player!==0)throw Error('방장만 시작할 수 있습니다.');
+  if(c.player!==r.host)throw Error('방장만 시작할 수 있습니다.');
   await startIfReady(r);broadcast(r);return;
  }
  if(msg.type==='leave'){
-  if(!r.started&&c.player===0){for(const guest of clients){if(guest.room===r.code&&guest!==c){guest.room=null;guest.player=null;send(guest,{type:'left',message:'방장이 나가 대기방이 종료되었습니다.'});}}rooms.delete(r.code);c.room=null;c.player=null;send(c,{type:'left'});return;}
-  if(!r.started){r.owners[c.player]=null;r.accountIds[c.player]=null;r.ready[c.player]=false;r.game.players[c.player]={name:'',connected:false};}
+  const leaving=c.player,wasHost=leaving===r.host;
+  // Preserve a running match's slot, but hand the host privileges to the
+  // earliest joined remaining participant. Waiting rooms free the slot.
+  if(!r.started){r.owners[leaving]=null;r.joinOrder[leaving]=null;r.accountIds[leaving]=null;r.ready[leaving]=false;r.game.players[leaving]={name:'',connected:false};}
+  else{r.game.players[leaving].connected=false;r.joinOrder[leaving]=null;
+   if(r.game.winner===null){
+    if(r.game.playerCount===2){const winner=1-leaving;r.game.winner=winner;r.game.phase='ended';r.game.pending=[];r.deadline=null;missionEvent(r,winner,{kind:'win',turn:r.turnSerial});await finishRound(r);r.game.history.unshift('상대 퇴장 · 남은 플레이어의 승리로 경기 종료');}
+    else {if(r.stake&&!r.settled)await auth.abortMatch(r.matchId,r.accountIds,r.stake);r.settled=true;r.economy.payouts=Array(r.game.playerCount).fill(r.stake*2);r.game.winner='aborted';r.game.phase='ended';r.game.pending=[];r.deadline=null;r.game.history.unshift('플레이어 퇴장 · 경기 취소 / 참가비와 벌금 예치금 전액 환불');}
+   }
+  }
   c.room=null;c.player=null;
+  if(wasHost){
+   const occupied=r.joinOrder.map((order,i)=>({order,i})).filter(x=>x.order!==null&&x.i!==leaving).sort((a,b)=>a.order-b.order);
+   if(occupied.length)r.host=occupied[0].i;
+   else if(!r.started)rooms.delete(r.code);
+  }
   if(!r.started&&r.owners.every(x=>!x))rooms.delete(r.code);
-  else broadcast(r);
+  else{if(wasHost)r.game.history.unshift('방장이 퇴장하여 가장 먼저 입장한 참가자에게 방장이 위임되었습니다.');broadcast(r);}
   send(c,{type:'left'});return;
  }
  if(!r.started)throw Error('모든 참가자가 준비한 뒤 방장이 시작해야 합니다.');
@@ -95,24 +129,16 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
   if(r.game.turn!==c.player||r.game.phase!=='roll')throw Error('지금은 윷을 던질 수 없습니다.');
   r.rolling=true;
   try{
-   const physics=await throwPhysics;
-   const simulation=physics.simulateThrow(Number(msg.power)||0);
-   // The server simulates and adjudicates. The client receives a replay, not a requested roll value.
-   const outcome=roll(r.game,c.player,msg.power,simulation.bits,simulation.nak);
-   outcome.trajectory=simulation.frames;
-   outcome.durationMs=simulation.durationMs;
-   outcome.physics=simulation.physics;
-   r.game.revealAt=Date.now()+simulation.durationMs;
-   r.deadline=r.game.revealAt+TURN_MS;
-   broadcast(r);
+   await applyThrow(r,c.player,Number(msg.power)||0,false);
   }finally{r.rolling=false;}
  }
  else if(msg.type==='move'){
-  move(r.game,c.player,Number(msg.piece),String(msg.route),Number(msg.rollIndex),msg.to);
-  r.deadline=r.game.winner===null?Date.now()+TURN_MS:null;
-  if(r.game.winner!==null&&r.stake&&!r.settled){r.settled=true;const winners=r.accountIds.filter((_,i)=>teamOf(r.game,i)===r.game.winner);await auth.settle(r.accountIds,winners,r.stake*r.game.playerCount);}broadcast(r);
+  const priorTurn=r.game.turn;const info=move(r.game,c.player,Number(msg.piece),String(msg.route),Number(msg.rollIndex),msg.to);
+  registerMove(r,c.player,info);if(r.game.turn!==priorTurn)r.turnSerial++;
+  r.autoMove=false;r.deadline=r.game.winner===null?Date.now()+TURN_MS:null;
+  if(r.game.winner!==null)await finishRound(r);broadcast(r);
  }else if(msg.type==='rematch'){
-  if(r.game.winner===null)throw Error('경기가 끝나야 재경기할 수 있습니다.');const old=r.game;r.game=createGame(old.mode,old.playerCount);r.game.players=old.players.map(p=>({...p}));r.started=false;r.starting=false;r.ready=Array(old.playerCount).fill(false);r.settled=false;r.deadline=null;broadcast(r);
+  if(r.game.winner===null)throw Error('경기가 끝나야 재경기할 수 있습니다.');if(!r.settled)throw Error('게임머니 정산을 마칠 때까지 다시 시작할 수 없습니다.');const old=r.game;r.game=createGame(old.mode,old.playerCount);r.game.players=old.players.map(p=>({...p}));r.started=false;r.starting=false;r.ready=Array(old.playerCount).fill(false);r.settled=false;r.deadline=null;r.autoMove=false;r.round++;r.matchId=r.code+'-'+r.round;r.missions=null;r.economy=null;broadcast(r);
  }else throw Error('알 수 없는 요청입니다.');r.updated=Date.now();
  }catch(e){error(c,e.message||'요청 처리 실패');}}
 server.on('upgrade',(req,socket)=>{
@@ -132,6 +158,22 @@ server.on('upgrade',(req,socket)=>{
  function disconnect(){clients.delete(c);if(!c.room)return;const r=rooms.get(c.room);if(!r)return;const other=Array.from(clients).some(o=>o.room===c.room&&o.player===c.player&&o.session===c.session);if(!other&&c.player!==null){r.game.players[c.player].connected=false;if(!r.started)r.ready[c.player]=false;}broadcast(r);}
  socket.on('close',disconnect);socket.on('error',()=>{});
 });
+async function applyThrow(r,p,power,automatic){
+ const physics=await throwPhysics;
+ const simulation=physics.simulateThrow(power);
+ const oldTurn=r.game.turn;const outcome=roll(r.game,p,power,simulation.bits,simulation.nak);
+ missionEvent(r,p,{kind:'throw',label:outcome.label,nak:outcome.nak,turn:r.turnSerial});if(oldTurn!==r.game.turn)r.turnSerial++;
+ outcome.trajectory=simulation.frames;
+ outcome.durationMs=simulation.durationMs;
+ outcome.physics=simulation.physics;
+ r.game.revealAt=Date.now()+simulation.durationMs;
+ // Auto-throw affords 10 seconds to choose a move. Bonus rolls still get 20 seconds.
+ r.autoMove=automatic&&r.game.phase==='move'&&r.game.turn===p;
+ r.deadline=r.game.revealAt+(r.autoMove?AUTO_MOVE_MS:TURN_MS);
+ if(automatic)r.game.history.unshift(`${r.game.players[p].name} · 시간 초과로 윷 자동 투척 (${outcome.label})`);
+ broadcast(r);
+ return outcome;
+}
 const processingTimeout=new Set();
 async function expireTurn(r){
  if(!r.started||r.game.winner!==null||!r.deadline||Date.now()<r.deadline||Date.now()<(r.game.revealAt||0)||processingTimeout.has(r.code))return;
@@ -139,18 +181,28 @@ async function expireTurn(r){
  try{
   const g=r.game,p=g.turn;
   if(g.phase==='roll'){
-   if(g.pending.length){g.phase='move';g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 남은 윷 결과 이동 단계로 전환`);}
-   else{g.turn=(p+1)%g.playerCount;g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 차례 넘김`);}
+   if(r.rolling)return;
+   r.rolling=true;
+   try{await applyThrow(r,p,45,true);}finally{r.rolling=false;}
+   // applyThrow already established a new deadline after the animation.
+   r.updated=Date.now();return;
   }else if(g.phase==='move'){
-   const options=movesFor(g,p);
-   if(options.length){const choice=options[0];move(g,p,choice.piece,choice.route,choice.rollIndex,choice.to);g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 자동 이동 (${choice.label})`);
-    if(g.winner!==null&&r.stake&&!r.settled){r.settled=true;const winners=r.accountIds.filter((_,i)=>teamOf(g,i)===g.winner);await auth.settle(r.accountIds,winners,r.stake*g.playerCount);}
-   }else{g.pending=[];g.phase='roll';g.turn=(p+1)%g.playerCount;g.history.unshift('제한시간 초과 · 이동 불가로 차례 변경');}
+   if(r.autoMove){
+    // The automatic roll was not followed by a chosen move within 10 seconds.
+    g.pending=[];g.phase='roll';g.turn=(p+1)%g.playerCount;r.turnSerial++;r.autoMove=false;
+    g.history.unshift(`${g.players[p].name} · 자동 투척 후 10초 경과 · 미이동으로 턴 종료`);
+   }else{
+    const options=movesFor(g,p);
+    if(options.length){const choice=options[0];const oldTurn=g.turn;const info=move(g,p,choice.piece,choice.route,choice.rollIndex,choice.to);registerMove(r,p,info);if(oldTurn!==g.turn)r.turnSerial++;g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 자동 이동 (${choice.label})`);
+     if(g.winner!==null)await finishRound(r);
+    }else{g.pending=[];g.phase='roll';g.turn=(p+1)%g.playerCount;r.turnSerial++;g.history.unshift('제한시간 초과 · 이동 불가로 차례 변경');}
+   }
   }
   if(g.winner!==null)r.deadline=null;else r.deadline=Date.now()+TURN_MS;
   g.history=g.history.slice(0,14);r.updated=Date.now();broadcast(r);
  }catch(e){console.error('Turn timeout:',e);}finally{processingTimeout.delete(r.code);}
 }
 setInterval(()=>{for(const r of rooms.values())void expireTurn(r);},200).unref();
+setInterval(()=>{for(const r of rooms.values())if(r.game.winner!==null&&r.game.winner!=='aborted'&&r.started&&!r.settled)void finishRound(r).then(()=>broadcast(r)).catch(err=>console.error('Settlement retry:',err));},2000).unref();
 setInterval(()=>{const now=Date.now();for(const [id,r]of rooms)if(now-r.updated>24*60*60*1000)rooms.delete(id);},60*60*1000).unref();
 auth.init().then(()=>server.listen(PORT,HOST,()=>console.log(`윷놀이 서버: http://localhost:${PORT}`))).catch(e=>{console.error('DB initialization failed:',e);process.exit(1);});

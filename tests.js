@@ -112,17 +112,17 @@ test('모 윷 도 누적 시 윷 → 도 → 모 순서로 기존 말과 새 말
 test('빽도: 출발 후 도 위치에서 도착칸으로 이동',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=1;g.phase='move';g.pending=[{id:5,label:'빽도',steps:-1}];const option=movesFor(g,0).find(m=>m.piece===0);assert.equal(option.to,30);move(g,0,0,'outer',0,30);assert.equal(g.pieces[0][0].pos,30);});
 test('게임판 모퉁이 강제 지름길만 허용',()=>{const g=fill(createGame('individual',2));g.pieces[0][0].pos=5;g.phase='move';g.pending=[{id:4,label:'도',steps:1}];assert.deepEqual(movesFor(g,0).filter(x=>x.piece===0).map(x=>x.to),[21]);assert.throws(()=>move(g,0,0,'outer',0,6));move(g,0,0,'cut5',0,21);assert.equal(g.pieces[0][0].pos,21);});
 
-test('오른쪽 위에서 중앙을 통과하면 왼쪽 아래로 직진, 중앙 정지 때만 회전 가능',()=>{
+test('오른쪽 위에서 중앙을 통과하면 왼쪽 아래로 직진, 중앙 정지 후 오른쪽 아래로만 이동',()=>{
  const fromUpperRight={pos:22,route:'cut5'};
  assert.deepEqual(optionsFor(fromUpperRight,3).map(m=>m.to),[25]);
  const fromCenter={pos:23,route:'cut5'};
- assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to).sort((a,b)=>a-b),[24,28]);
+ assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to),[28]);
 });
-test('왼쪽 위에서 중앙을 통과하면 오른쪽 아래로 직진, 중앙 정지 때만 회전 가능',()=>{
+test('왼쪽 위에서 중앙을 통과하면 오른쪽 아래로 직진, 중앙 정지 후 오른쪽 아래로만 이동',()=>{
  const fromUpperLeft={pos:27,route:'cut10'};
  assert.deepEqual(optionsFor(fromUpperLeft,3).map(m=>m.to),[29]);
  const fromCenter={pos:23,route:'cut10'};
- assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to).sort((a,b)=>a-b),[24,28]);
+ assert.deepEqual(optionsFor(fromCenter,1).map(m=>m.to),[28]);
 });
 test('중앙에서 오른쪽 아래로 도착할 때 이동과 잡기',()=>{
  const g=fill(createGame('individual',2));
@@ -149,5 +149,11 @@ test('서버 물리 결과가 특별 윷 뒷면 한 개이면 빽도로 판정',
  assert.equal(outcome.backdo,true);
 });
 
+test('중앙 정지 후 도·개 이동은 양쪽 출발 경로 모두 오른쪽 아래로 한 가지',()=>{
+ for(const route of ['cut5','cut10']){
+  assert.deepEqual(optionsFor({pos:23,route},1).map(m=>m.to),[28]);
+  assert.deepEqual(optionsFor({pos:23,route},2).map(m=>m.to),[29]);
+ }
+});
 console.log(tests+'개 테스트 통과');
 

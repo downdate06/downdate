@@ -76,7 +76,21 @@ if(canvas){
     const points=[];for(let j=0;j<=28;j++){const a=Math.PI*j/28;points.push(new THREE.Vector3(.247*Math.cos(a),y,-.247*Math.sin(a)-.003));}
     group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),28,.008,5,false),edgeMat));
    }
-   if(i===3){const mark=new THREE.Mesh(new THREE.CircleGeometry(.10,32),new THREE.MeshStandardMaterial({color:0xffd341,side:THREE.DoubleSide}));mark.position.set(0,-.42,.019);group.add(mark);const dot=new THREE.Mesh(new THREE.CircleGeometry(.04,20),darkDot);dot.position.set(0,-.42,.021);group.add(dot);}
+   if(i===3){
+    // The special stick must be identifiable on BOTH its flat and curved sides.
+    // Keep each star fixed to the stick so the server's face reading stays unchanged.
+    const markCanvas=document.createElement('canvas');markCanvas.width=256;markCanvas.height=256;
+    const mc=markCanvas.getContext('2d');
+    mc.fillStyle='#ffdb58';mc.beginPath();mc.arc(128,128,109,0,Math.PI*2);mc.fill();
+    mc.strokeStyle='#342f37';mc.lineWidth=12;mc.stroke();
+    mc.fillStyle='#182637';mc.font='bold 170px sans-serif';mc.textAlign='center';mc.textBaseline='middle';mc.fillText('★',128,128);
+    const texture=new THREE.CanvasTexture(markCanvas);texture.colorSpace=THREE.SRGBColorSpace;
+    const markerMat=new THREE.MeshBasicMaterial({map:texture,transparent:true,side:THREE.DoubleSide,depthWrite:false});
+    for(const z of [.033,-.268]){
+     const mark=new THREE.Mesh(new THREE.PlaneGeometry(.28,.28),markerMat);
+     mark.position.set(0,-.35,z);group.add(mark);
+    }
+   }
    group.position.set((i-1.5)*.7,.16,(i%2-.5)*1.12);
    group.rotation.set(-Math.PI/2,0,0);
    scene.add(group);sticks.push(group);
