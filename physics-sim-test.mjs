@@ -1,19 +1,24 @@
 import assert from 'node:assert/strict';
-import {simulateThrow} from './throw-physics.mjs';
-for(let n=0;n<3;n++){
- const r=simulateThrow(15+n*30);
- assert(r.frames.length>=50);
- assert(r.frames.every(f=>f.length===4&&f.every(v=>v.length===7&&v.every(Number.isFinite))));
- assert(r.nak||r.bits.length===4);
- const final=r.frames.at(-1);
- for(let i=0;i<4;i++){
-  const [x,y,z,qx,qy,qz,qw]=final[i];
-  const normalY=2*(qy*qz-qw*qx);
-  if(!r.nak){
-   assert(Math.abs(normalY)>.70,`stick ${i} landed on side`);
-   assert.equal(normalY>=0?1:0,r.bits[i]);
-  }
-  assert(Number.isFinite(x+y+z+qx+qy+qz+qw));
+import {simulateThrow,checkLanding} from './throw-physics.mjs';
+let naks=0,fronts=0,throws=240;
+for(let n=0;n<throws;n++){
+ const r=simulateThrow([0,50,100][n%3],n+1337);
+ assert.equal(r.frames.length,111);
+ assert.equal(r.frames.at(-1).length,4);
+ assert(r.frames.every(f=>f.every(v=>v.length===7&&v.every(Number.isFinite))));
+ assert.equal(r.nak,r.outside.some(Boolean));
+ const evaluation=checkLanding(r);
+ assert(evaluation.valid);
+ for(const f of evaluation.disc){
+  assert(Math.abs(f.normalY)>.85,'Final stick must lie on front/back face');
+  assert.equal(f.normalY>=0?1:0,f.bit,'Visual face must match ruling');
+  fronts+=f.bit;
  }
+ const first=r.frames.at(-2),last=r.frames.at(-1);
+ for(let i=0;i<4;i++)assert(Math.hypot(last[i][0]-first[i][0],last[i][1]-first[i][1],last[i][2]-first[i][2])<.03,'Throw has not settled');
+ naks+=r.nak;
 }
-console.log('Server 3D throw simulation sanity tests passed');
+assert(naks<throws*.18,`Excessive nak rate: ${naks}/${throws}`);
+assert(naks>0,'The edge case should still be possible');
+assert(fronts>50&&fronts<throws*4-50,'Throw faces should vary');
+console.log(`PASS ${throws} simulated throws · nak ${naks} (${(naks/throws*100).toFixed(1)}%) · visible faces/official outcomes/settling consistent`);
