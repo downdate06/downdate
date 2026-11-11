@@ -136,3 +136,86 @@
 .throw-platform-title,.throw-platform-foot{font-size:12px;letter-spacing:.25px;line-height:1.4}
 .stake-minimum{font-size:14px;font-weight:850;color:#16466c;background:#e7f3ff;border:1px solid #9ec9ec;padding:12px 14px;border-radius:10px;margin:8px 0}
 @media(max-width:600px){.throw-platform{width:100%;max-width:none;padding:8px}.result-area-3d{min-height:340px}#yut-stage{height:265px}.throw-platform-title,.throw-platform-foot{font-size:11px}}
+
+/* v4.4: single-screen, readable play hierarchy */
+.game-layout{align-items:start;gap:14px}
+.game .game-heading{margin-bottom:10px}
+.turn-timer{position:sticky;top:0;z-index:24;padding:10px 14px;margin:0 0 12px;border:2px solid #bfd1e9;background:#f7fbff;box-shadow:0 3px 14px #19395b12}
+.turn-timer .timer-top strong{font-size:14px;color:#203b62}
+.timer-track{margin:6px 0 4px;height:9px}
+.board-card,.action-card{box-shadow:0 4px 20px #1522380e}
+.board-card{min-width:0}
+.board-choice-panel{margin-bottom:8px}
+.side{min-width:0}
+.players-grid{gap:7px}
+.players-grid .player-card{padding:10px}
+.player-money{margin-top:4px;padding:3px 7px}
+.action-card{padding:14px}
+.action-header h2{font-size:18px;margin:2px 0 4px}
+.action-header p{font-size:12px;line-height:1.4;margin:0 0 7px}
+.action-eyebrow{font-size:11px;letter-spacing:.5px}
+.result-area-3d{min-height:unset;gap:3px}
+.throw-platform{max-width:none;width:100%}
+#yut-stage{height:235px}
+.roll-result{font-size:28px;padding:3px 0}
+.face-result{min-height:35px;gap:3px}
+.gauge-labels{margin:3px 0}
+.throw-btn{min-height:48px}
+.rule-note{font-size:11px;line-height:1.45}
+.history-disclosure{background:#fff;border:1px solid #e0e5ec;border-radius:13px;overflow:hidden;margin-bottom:12px}
+.history-disclosure summary{padding:12px 15px;font-weight:800;font-size:13px;cursor:pointer;color:#53647a}
+.history-disclosure .history-card{box-shadow:none;border:0;margin:0;padding-top:0}
+@media(min-width:1000px){.game-layout{grid-template-columns:minmax(0,1.2fr) minmax(350px,.8fr)}.board-card{position:sticky;top:85px}.side .players-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.turn-timer{top:0}.game-layout{gap:10px}.side{display:flex;flex-direction:column}.side .players-grid{order:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.side .action-card{order:0}.side .match-economy{order:2}.side .mission-panel{order:3}.side .history-disclosure{order:4}.action-card{padding:12px}}
+@media(max-width:600px){.turn-timer{border-radius:10px}.turn-timer .timer-top strong{font-size:12px}#yut-stage{height:220px}.throw-platform{max-width:none}.result-area-3d{min-height:unset}.board-choice-panel{padding:8px}.game .game-heading{gap:7px}.side .players-grid{gap:6px}.side .player-card{padding:8px}.action-header h2{font-size:16px}.rule-note{display:none}}
+/* Small screens: put the throw control directly above the board, and keep secondary panels below. */
+@media(max-width:800px){
+ .game-layout{display:grid;grid-template-columns:minmax(0,1fr)}
+ .game-layout>.side{display:contents}
+ .game-layout>.side>.action-card{grid-row:1;min-width:0}
+ .game-layout>.board-card{grid-row:2;min-width:0}
+ .game-layout>.side>.players-grid{grid-row:3}
+ .game-layout>.side>.match-economy{grid-row:4}
+ .game-layout>.side>.mission-panel{grid-row:5}
+ .game-layout>.side>.history-disclosure{grid-row:6}
+ .game-layout>.board-card,.game-layout>.side>.action-card{width:100%}
+}
+
+/* v4.5: clean game controls and all-player mission notices */
+.game{max-width:1320px}
+.game-layout{grid-template-columns:minmax(0,1.14fr) minmax(350px,.86fr);gap:16px}
+.game-heading{margin-bottom:10px}
+.board-card,.action-card,.player-card,.mission-panel,.match-economy{border-radius:14px}
+.side{gap:10px}
+.action-card{display:flex;flex-direction:column;gap:9px;padding:16px}
+.action-eyebrow{letter-spacing:.4px;color:#607a9c;font-size:10px}
+.action-header h2{margin:0 0 2px;font-size:18px}
+.action-header p{margin:0;color:#75859a;font-size:11px}
+.throw-results{background:#f4f7fd;border:1px solid #e0e8f6;border-radius:12px;padding:11px 12px;min-height:65px;display:flex;flex-direction:column;gap:8px}
+.throw-results .pending-guide{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0}
+.throw-results .pending-guide b{color:#24476d;font-size:13px}
+.throw-results .pending-guide span{font-size:10px;color:#788aa0}
+.throw-results .pending-rolls{display:flex;flex-wrap:wrap;gap:6px;min-height:25px;align-items:center;margin:0}
+.throw-results .pending-info{font-size:12px;padding:6px 10px;min-height:30px;box-shadow:none}
+.board-selection-panel{padding:4px 4px 9px;margin:0 0 5px;background:transparent;border:0}
+.board-selection-panel .selection-status{font-size:11px}
+.result-area-3d{margin:0;min-height:unset}
+.throw-platform{border-radius:12px}
+#yut-stage{height:250px}
+.gauge-outer{margin-top:1px}
+.throw-btn{margin-top:0;font-size:14px}
+.players-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.player-card{padding:12px}
+.mission-announcement{display:flex;align-items:center;gap:12px;border:1px solid #78aa96;background:#e9f7f0;color:#1b5142;border-radius:12px;padding:11px 13px;box-shadow:0 5px 16px #1b514211;animation:mission-in .2s ease-out;pointer-events:none}
+.mission-announcement.mission-rare{border-color:#e4bf70;background:#fff5d9;color:#684b17}
+.mission-notice-symbol{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#c6e9d7;color:#176344;font-size:20px;font-weight:900}
+.mission-rare .mission-notice-symbol{background:#f5dd9c;color:#8a5d14}
+.mission-notice-content{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mission-notice-heading{font-size:10px;font-weight:900;letter-spacing:.3px}
+.mission-notice-content strong{font-size:13px;overflow-wrap:anywhere}
+.mission-notice-content small{font-size:10px;opacity:.76}
+@keyframes mission-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:1000px){.game-layout{grid-template-columns:minmax(0,1.14fr) minmax(350px,.86fr)}.side .players-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.game-layout{grid-template-columns:minmax(0,1fr)}.game-layout>.side>.action-card{grid-row:1}.game-layout>.board-card{grid-row:2}.game-layout>.side>.players-grid{grid-row:3}.game-layout>.side>.match-economy{grid-row:4}.game-layout>.side>.mission-panel{grid-row:5}.game-layout>.side>.history-disclosure{grid-row:6}.players-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.game{padding:14px 10px 28px}.action-card{padding:12px;gap:7px}.throw-results{padding:10px}.throw-results .pending-guide span{flex-basis:100%}#yut-stage{height:245px}.mission-announcement{padding:10px;gap:9px}.mission-notice-content strong{font-size:12px}.action-header h2{font-size:17px}.player-card{padding:9px}}
+@media(prefers-reduced-motion:reduce){.mission-announcement{animation:none}}

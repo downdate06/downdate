@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 window.yutThrowSettled=payload=>{const roll=state.game?.roll;if(!roll||roll.id!==payload.id)return;state.visualSettledId=state.room+':'+roll.id;const label=$('roll-result');if(label)label.textContent=roll.label+'!';const faces=$('face-result');if(faces)faces.classList.remove('throwing');render();};
 const initialInvite=new URLSearchParams(location.search).get('room');
-const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,selectedRollId:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,deadline:null,turnSeconds:20,autoMove:false,host:0,missions:null,economy:null,serverOffset:0,balances:[],started:false,readyFlags:[],account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,sound:localStorage.getItem('yut-muted')!=='1'};
+const state={ws:null,game:null,player:null,room:null,moves:[],selected:null,selectedRollId:null,phase:0,raf:null,session:localStorage.getItem('yut-session')||('yut-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))),reconnectTimer:null,manualLeave:false,deadline:null,turnSeconds:20,autoMove:false,host:0,missions:null,economy:null,serverOffset:0,balances:[],started:false,readyFlags:[],account:null,token:localStorage.getItem('yut-token'),charging:false,chargeStart:0,chargePower:0,missionQueue:[],missionSeen:new Set(),missionContext:null,missionEventsInitialized:false,missionNoticeTimer:null,missionNotifying:false,sound:localStorage.getItem('yut-muted')!=='1'};
 localStorage.setItem('yut-session',state.session);
 const positions={30:[510,510],21:[435,135],22:[360,210],23:[285,285],24:[210,360],25:[135,435],26:[135,135],27:[210,210],28:[360,360],29:[435,435]};
 for(let i=1;i<=5;i++)positions[i]=[510,510-90*i];
@@ -18,7 +18,37 @@ function board(){const svg=$('board-svg');svg.innerHTML='';const NS='http://www.
 }
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>$('toast').classList.remove('show'),3000);}
 function connStatus(online){$('connection').classList.toggle('online',online);$('connection').innerHTML='<i></i> '+(online?'서버 연결됨':'연결 중...');}
-function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value,token:state.token});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){const oldTurn=state.game?.turn,oldRoom=state.room,oldMoveNo=state.game?.moveNo,oldWinner=state.game?.winner;state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];state.started=!!msg.started;state.readyFlags=msg.ready||[];state.balances=msg.balances||[];state.deadline=msg.deadline||null;state.turnSeconds=msg.turnSeconds||20;state.autoMove=!!msg.autoMove;state.missions=msg.missions||null;state.economy=msg.economy||null;state.host=msg.host??0;state.serverOffset=Number(msg.serverNow||Date.now())-Date.now();if(oldWinner!==null&&oldWinner!==undefined&&msg.game.winner===null){state.lastThrowId=null;state.visualSettledId=null;}if(msg.account)state.account=msg.account; if(oldRoom!==msg.room||oldTurn!==msg.game.turn||oldMoveNo!==msg.game.moveNo){state.selected=null;}if(!msg.game.pending.some(r=>r.id===state.selectedRollId))state.selectedRollId=null;renderTargets();updateAccount();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='left'){finishLeaving();if(msg.message)toast(msg.message);}else if(msg.type==='hello'){if(msg.account){state.account=msg.account;updateAccount();}}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
+function clearMissionAnnouncement(){
+ clearTimeout(state.missionNoticeTimer);
+ state.missionNoticeTimer=null;
+ state.missionQueue.length=0;
+ state.missionNotifying=false;
+ const el=$('mission-announcement');if(el){el.classList.add('hidden');el.replaceChildren();}
+}
+function showNextMissionAnnouncement(){
+ if(state.missionNotifying||!state.missionQueue.length)return;
+ const event=state.missionQueue.shift(),el=$('mission-announcement');if(!el)return;
+ state.missionNotifying=true;el.replaceChildren();
+ el.className='mission-announcement'+(event.points>=6?' mission-rare':'');
+ const symbol=document.createElement('span');symbol.className='mission-notice-symbol';symbol.textContent=event.points>=6?'✦':'✓';
+ const details=document.createElement('div');details.className='mission-notice-content';
+ const eyebrow=document.createElement('span');eyebrow.className='mission-notice-heading';eyebrow.textContent=event.kind==='secret'?'비밀 미션 성공!':'공통 미션 성공!';
+ const title=document.createElement('strong');title.textContent=(state.game?.players[event.player]?.name||`${event.player+1}P`)+' · '+event.title;
+ const points=document.createElement('small');points.textContent='미션 달성 · +'+event.points+'점';
+ details.append(eyebrow,title,points);el.append(symbol,details);
+ state.missionNoticeTimer=setTimeout(()=>{el.classList.add('hidden');state.missionNotifying=false;state.missionNoticeTimer=null;showNextMissionAnnouncement();},2500);
+}
+function syncMissionAnnouncements(room,missions,game){
+ const context=room+':'+(missions?.matchId||'active');
+ if(state.missionContext!==context){state.missionContext=context;state.missionSeen=new Set();state.missionEventsInitialized=false;clearMissionAnnouncement();}
+ const events=missions?.events||[];
+ if(!state.missionEventsInitialized){for(const e of events)state.missionSeen.add(e.serial??[e.player,e.id,e.kind].join(':'));state.missionEventsInitialized=true;return;}
+ const fresh=[];
+ for(const e of events){const key=e.serial??[e.player,e.id,e.kind].join(':');if(!state.missionSeen.has(key))fresh.push(e);state.missionSeen.add(key);}
+ for(const e of fresh.reverse())state.missionQueue.push(e);
+ showNextMissionAnnouncement();
+}
+function startSocket(){if(state.ws&&[WebSocket.CONNECTING,WebSocket.OPEN].includes(state.ws.readyState))return;const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');state.ws=ws;connStatus(false);ws.onopen=()=>{connStatus(true);send({type:'hello',session:state.session,room:state.manualLeave?null:state.room,name:$('name').value,token:state.token});};ws.onmessage=e=>{let msg;try{msg=JSON.parse(e.data);}catch{return;}if(msg.type==='state'){const oldTurn=state.game?.turn,oldRoom=state.room,oldMoveNo=state.game?.moveNo,oldWinner=state.game?.winner;state.room=msg.room;state.player=msg.player;state.game=msg.game;state.moves=msg.moves||[];state.started=!!msg.started;state.readyFlags=msg.ready||[];state.balances=msg.balances||[];state.deadline=msg.deadline||null;state.turnSeconds=msg.turnSeconds||20;state.autoMove=!!msg.autoMove;state.missions=msg.missions||null;state.economy=msg.economy||null;state.host=msg.host??0;syncMissionAnnouncements(msg.room,msg.missions,msg.game);state.serverOffset=Number(msg.serverNow||Date.now())-Date.now();if(oldWinner!==null&&oldWinner!==undefined&&msg.game.winner===null){state.lastThrowId=null;state.visualSettledId=null;}if(msg.account)state.account=msg.account; if(oldRoom!==msg.room||oldTurn!==msg.game.turn||oldMoveNo!==msg.game.moveNo){state.selected=null;}if(!msg.game.pending.some(r=>r.id===state.selectedRollId))state.selectedRollId=null;renderTargets();updateAccount();localStorage.setItem('yut-room',msg.room);$('lobby').classList.add('hidden');$('game').classList.remove('hidden');render();}else if(msg.type==='left'){finishLeaving();if(msg.message)toast(msg.message);}else if(msg.type==='hello'){if(msg.account){state.account=msg.account;updateAccount();}}else if(msg.type==='error')toast(msg.message);};ws.onclose=()=>{connStatus(false);if(!state.manualLeave){clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(startSocket,1800);}};ws.onerror=()=>{};}
 function send(msg){if(state.ws?.readyState===WebSocket.OPEN)state.ws.send(JSON.stringify(msg));else toast('서버에 연결 중입니다. 다시 시도해 주세요.');}
 function ready(){const g=state.game;return !!(g&&g.players.every(p=>p.name&&p.connected));}
 function myTurn(){return state.started&&ready()&&state.game.turn===state.player&&state.game.winner===null&&!(state.game.revealAt&&Date.now()<state.game.revealAt);}
@@ -34,7 +64,7 @@ function render(){const g=state.game;if(!g)return;
   const active=state.started&&g.turn===i&&g.winner===null&&ready();
   const won=g.winner!==null&&(g.mode==='team'?g.winner===i%2:g.winner===i);
   const status=!g.players[i].name?'입장 대기':!g.players[i].connected?'연결 끊김':!state.started?(state.readyFlags[i]?'준비 완료':'준비 전'):won?'승리':g.winner!==null?'경기 종료':active?'진행 중':'대기 중';
-  const card=document.createElement('div');card.className='player-card player-'+(g.mode==='team'?SIDE_COLORS[i]:COLORS[i]);
+  const card=document.createElement('div');card.className='player-card player-'+(g.mode==='team'?SIDE_COLORS[i]:COLORS[i])+(i===state.player?' is-self':'')+(active?' is-active':'');
   const heading=document.createElement('div');heading.className='player-heading';
   const dot=document.createElement('span');dot.className='team-dot '+(g.mode==='team'?SIDE_COLORS[i]:COLORS[i]);heading.appendChild(dot);
   const nm=document.createElement('b');nm.textContent=(i+1)+'P '+(g.players[i].name||'입장 대기')+(state.player===i?' (나)':'')+(state.host===i?' 👑 방장':'')+(g.mode==='team'?' · '+(i%2===0?'청팀':'홍팀'):'');heading.appendChild(nm);
@@ -172,7 +202,7 @@ function renderTargets(){
 }
 let lastFrame=0;
 function animateGauge(t){
- const timer=$('turn-timer');if(timer&&!timer.classList.contains('hidden')){const remaining=Math.max(0,(state.deadline-Date.now()-state.serverOffset)/1000);$('timer-count').textContent=Math.ceil(remaining)+'초';$('timer-bar').style.width=Math.max(0,Math.min(100,remaining/state.turnSeconds*100))+'%';timer.classList.toggle('urgent',remaining<=5);$('timer-hint').textContent=state.autoMove?'자동 투척 후 10초 내에 이동하지 않으면 턴 종료':state.game?.phase==='roll'?'20초 내에 던지지 않으면 자동으로 던집니다.':'시간 초과 시 가능한 이동 하나를 자동 실행합니다.';}
+ const timer=$('turn-timer');if(timer&&!timer.classList.contains('hidden')){const now=Date.now()+state.serverOffset;const remaining=Math.max(0,(state.deadline-Math.max(now,state.game?.revealAt&&now<state.game.revealAt?state.game.revealAt:now))/1000);$('timer-count').textContent=Math.ceil(remaining)+'초';$('timer-bar').style.width=Math.max(0,Math.min(100,remaining/state.turnSeconds*100))+'%';timer.classList.toggle('urgent',remaining<=5);$('timer-hint').textContent=state.game?.revealAt&&Date.now()+state.serverOffset<state.game.revealAt?'윷이 구르는 동안 제한시간 일시정지':state.autoMove?'자동 투척 후 10초 안에 이동 선택 · 미선택 시 턴 종료':state.game?.phase==='roll'?'한 턴 전체 20초 · 시간 초과 시 자동 투척':'한 턴 전체 20초 · 이동해도 시간이 초기화되지 않습니다.';}
 if(t-lastFrame>25){lastFrame=t;const value=state.charging?window.YutThrowLogic.powerAt(t-state.chargeStart):0;state.chargePower=value;$('gauge-value').style.width=value+'%';$('gauge-value').classList.toggle('charged',value>=90);}state.raf=requestAnimationFrame(animateGauge);}
 let audioContext;
 function playSound(type){if(!state.sound)return;try{

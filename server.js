@@ -31,7 +31,7 @@ const server=http.createServer(async(req,res)=>{try{
  }catch(e){response(res,400,{error:e.message});}});
 function frame(data,opcode=1){const buf=Buffer.isBuffer(data)?data:Buffer.from(data);const n=buf.length;let head;if(n<126){head=Buffer.alloc(2);head[1]=n;}else if(n<65536){head=Buffer.alloc(4);head[1]=126;head.writeUInt16BE(n,2);}else{head=Buffer.alloc(10);head[1]=127;head.writeBigUInt64BE(BigInt(n),2);}head[0]=0x80|opcode;return Buffer.concat([head,buf]);}
 function send(c,obj){if(!c.socket.destroyed)try{c.socket.write(frame(JSON.stringify(obj)));}catch{}}
-function stateFor(r,c){return {type:'state',room:r.code,player:c.player,game:r.game,moves:c.player===null?[]:movesFor(r.game,c.player),stake:r.stake,started:r.started,ready:r.ready,host:r.host??0,autoMove:r.autoMove||false,account:auth.safe(auth.get(c.accountId)),balances:r.accountIds.map(id=>id?auth.get(id)?.balance??null:null),deadline:r.deadline||null,serverNow:Date.now(),turnSeconds:(r.autoMove?AUTO_MOVE_MS:TURN_MS)/1000,missions:publicView(r.missions,c.player),economy:r.economy?{stake:r.stake,entryCost:r.economy.entryCost,finePot:r.economy.finePot,fineSpent:r.economy.fineSpent,events:r.economy.events,payouts:r.economy.payouts}:null};}
+function stateFor(r,c){return {type:'state',room:r.code,player:c.player,game:r.game,moves:c.player===null?[]:movesFor(r.game,c.player),stake:r.stake,started:r.started,ready:r.ready,host:r.host??0,autoMove:r.autoMove||false,account:auth.safe(auth.get(c.accountId)),balances:r.accountIds.map(id=>id?auth.get(id)?.balance??null:null),deadline:r.deadline||null,serverNow:Date.now(),turnSeconds:(r.autoMove?AUTO_MOVE_MS:TURN_MS)/1000,turnBudget:TURN_MS/1000,animationUntil:r.game.revealAt||null,missions:publicView(r.missions,c.player),economy:r.economy?{stake:r.stake,entryCost:r.economy.entryCost,finePot:r.economy.finePot,fineSpent:r.economy.fineSpent,events:r.economy.events,payouts:r.economy.payouts}:null};}
 function broadcast(r){for(const c of clients)if(c.room===r.code)send(c,stateFor(r,c));}
 function error(c,msg){send(c,{type:'error',message:msg});}
 function cleanName(x){return String(x||'플레이어').trim().slice(0,12)||'플레이어';}
@@ -51,7 +51,7 @@ async function startIfReady(r){
    if(ids.some(x=>!x)||new Set(ids).size!==ids.length)throw Error('게임머니 대전은 모두 서로 다른 계정이 필요합니다.');
    await auth.lockMatch(r.matchId,ids,r.stake);
   }
-  r.missions=chosenMissions;
+  chosenMissions.matchId=r.matchId;r.missions=chosenMissions;
   r.economy=economyRules.initEconomy(r.game.playerCount,r.stake);
   r.turnSerial=0;
   r.started=true;
@@ -135,7 +135,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
  else if(msg.type==='move'){
   const priorTurn=r.game.turn;const info=move(r.game,c.player,Number(msg.piece),String(msg.route),Number(msg.rollIndex),msg.to);
   registerMove(r,c.player,info);if(r.game.turn!==priorTurn)r.turnSerial++;
-  r.autoMove=false;r.deadline=r.game.winner===null?Date.now()+TURN_MS:null;
+  if(r.game.winner!==null){r.deadline=null;r.autoMove=false;}else if(r.game.turn!==priorTurn){r.autoMove=false;r.deadline=Date.now()+TURN_MS;} // Same turn: do not reset remaining time.
   if(r.game.winner!==null)await finishRound(r);broadcast(r);
  }else if(msg.type==='rematch'){
   if(r.game.winner===null)throw Error('경기가 끝나야 재경기할 수 있습니다.');if(!r.settled)throw Error('게임머니 정산을 마칠 때까지 다시 시작할 수 없습니다.');const old=r.game;r.game=createGame(old.mode,old.playerCount);r.game.players=old.players.map(p=>({...p}));r.started=false;r.starting=false;r.ready=Array(old.playerCount).fill(false);r.settled=false;r.deadline=null;r.autoMove=false;r.round++;r.matchId=r.code+'-'+r.round;r.missions=null;r.economy=null;broadcast(r);
@@ -166,10 +166,18 @@ async function applyThrow(r,p,power,automatic){
  outcome.trajectory=simulation.frames;
  outcome.durationMs=simulation.durationMs;
  outcome.physics=simulation.physics;
- r.game.revealAt=Date.now()+simulation.durationMs;
- // Auto-throw affords 10 seconds to choose a move. Bonus rolls still get 20 seconds.
- r.autoMove=automatic&&r.game.phase==='move'&&r.game.turn===p;
- r.deadline=r.game.revealAt+(r.autoMove?AUTO_MOVE_MS:TURN_MS);
+ const revealStart=Date.now();
+ r.game.revealAt=revealStart+simulation.durationMs;
+ // Pause the shared action budget during the non-interactive 3D playback.
+ // Do not reset the timer on additional throws, captures, or piece moves.
+ if(automatic){
+  r.autoMove=r.game.phase==='move'&&r.game.turn===p;
+  r.deadline=r.game.revealAt+(r.autoMove?AUTO_MOVE_MS:TURN_MS);
+ }else if(r.game.turn!==oldTurn){
+  r.autoMove=false;r.deadline=r.game.revealAt+TURN_MS;
+ }else if(r.deadline){
+  r.deadline+=simulation.durationMs;
+ }else{r.deadline=r.game.revealAt+TURN_MS;}
  if(automatic)r.game.history.unshift(`${r.game.players[p].name} · 시간 초과로 윷 자동 투척 (${outcome.label})`);
  broadcast(r);
  return outcome;
@@ -188,17 +196,22 @@ async function expireTurn(r){
    r.updated=Date.now();return;
   }else if(g.phase==='move'){
    if(r.autoMove){
-    // The automatic roll was not followed by a chosen move within 10 seconds.
-    g.pending=[];g.captureThrows=0;g.captureRollReady=false;g.phase='roll';g.turn=(p+1)%g.playerCount;r.turnSerial++;r.autoMove=false;
     g.history.unshift(`${g.players[p].name} · 자동 투척 후 10초 경과 · 미이동으로 턴 종료`);
    }else{
     const options=movesFor(g,p);
-    if(options.length){const choice=options[0];const oldTurn=g.turn;const info=move(g,p,choice.piece,choice.route,choice.rollIndex,choice.to);registerMove(r,p,info);if(oldTurn!==g.turn)r.turnSerial++;g.history.unshift(`${g.players[p].name} · 제한시간 초과 · 자동 이동 (${choice.label})`);
-     if(g.winner!==null)await finishRound(r);
-    }else{g.pending=[];g.phase='roll';if(!g.captureThrows){g.turn=(p+1)%g.playerCount;r.turnSerial++;}else g.captureRollReady=true;g.history.unshift('제한시간 초과 · 이동 불가');}
+    if(options.length){
+     const choice=options[0];const info=move(g,p,choice.piece,choice.route,choice.rollIndex,choice.to);
+     registerMove(r,p,info);
+     g.history.unshift(`${g.players[p].name} · 20초 소진 · 자동 이동 (${choice.label})`);
+    }else g.history.unshift(`${g.players[p].name} · 20초 소진 · 이동 가능한 말 없음`);
    }
+   if(g.winner===null){
+    // A spent turn cannot be extended by a capture, remaining roll, or auto move.
+    g.pending=[];g.captureThrows=0;g.captureRollReady=false;g.phase='roll';
+    g.turn=(p+1)%g.playerCount;r.turnSerial++;
+   }else await finishRound(r);
+   r.autoMove=false;r.deadline=g.winner===null?Date.now()+TURN_MS:null;
   }
-  if(g.winner!==null)r.deadline=null;else r.deadline=Date.now()+TURN_MS;
   g.history=g.history.slice(0,14);r.updated=Date.now();broadcast(r);
  }catch(e){console.error('Turn timeout:',e);}finally{processingTimeout.delete(r.code);}
 }
