@@ -176,4 +176,33 @@ test('잡은 뒤 보너스 투척을 먼저 해도 기존 결과 유지',()=>{
  assert.equal(g.captureThrows,0);assert.deepEqual(g.pending.map(x=>x.steps),[5,2]);
 });
 
+
+
+test('중앙 빽도로 오른쪽 위 22 이동 후 중앙을 통과해 왼쪽 아래로 직진',()=>{
+ const g=fill(createGame('individual',2));g.pieces[0][0]={pos:23,route:'cut5'};
+ g.phase='move';g.pending=[{id:1,label:'빽도',steps:-1}];
+ const back=optionsFor(g.pieces[0][0],-1).find(x=>x.to===22);
+ assert.equal(back.route,'cut5');
+ move(g,0,0,back.route,0,22);
+ assert.deepEqual(g.pieces[0][0],{pos:22,route:'cut5'});
+ for(const [steps,to] of [[1,23],[2,24],[3,25],[4,15]]){
+  const opts=optionsFor(g.pieces[0][0],steps);
+  assert.deepEqual(opts.map(x=>x.to),[to]);
+  assert(!opts.some(x=>x.route==='cut5fast'||x.to===28||x.to===29));
+ }
+ g.turn=0;g.phase='move';g.pending=[{id:2,label:'개',steps:2}];
+ assert.deepEqual(movesFor(g,0).filter(x=>x.piece===0).map(x=>x.to),[24]);
+ assert.throws(()=>move(g,0,0,'cut5fast',0,28));
+ move(g,0,0,'cut5',0,24);
+ assert.deepEqual(g.pieces[0][0],{pos:24,route:'cut5'});
+});
+
+test('중앙에서 빽도로 왼쪽 위 27 이동 시 기존 대각선 유지',()=>{
+ const g=fill(createGame('individual',2));g.pieces[0][0]={pos:23,route:'cut10'};
+ g.phase='move';g.pending=[{id:1,label:'빽도',steps:-1}];
+ move(g,0,0,'cut10',0,27);
+ assert.deepEqual(g.pieces[0][0],{pos:27,route:'cut10'});
+ assert.deepEqual(optionsFor(g.pieces[0][0],2).map(x=>x.to),[28]);
+});
+
 console.log(tests+'개 테스트 통과');

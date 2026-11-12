@@ -1,0 +1,25 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {createGame,move,optionsFor}=require('./game');
+const {afterMove}=require('./turn-clock');
+const TURN=20000,NOW=100000;
+function clock(deadline=NOW+3300){return {game:createGame('individual',2),deadline,autoMove:false};}
+const r=clock();
+afterMove(r,0,0,NOW,TURN);
+assert.equal(r.deadline,NOW+3300,'Regular movement should not refresh clock');
+r.game.turn=0;afterMove(r,0,1,NOW,TURN);
+assert.equal(r.deadline,NOW+20000,'Capture restores full 20 seconds');
+r.autoMove=true;r.deadline=NOW+9000;
+afterMove(r,0,2,NOW,TURN);
+assert.equal(r.deadline,NOW+20000);assert.equal(r.autoMove,false,'Capture clears automatic 10s mode');
+r.deadline=NOW+500;r.game.turn=1;afterMove(r,0,0,NOW,TURN);
+assert.equal(r.deadline,NOW+20000,'New player gets 20s');
+r.game.winner=1;afterMove(r,1,1,NOW,TURN);
+assert.equal(r.deadline,null,'No timer after game end');
+const g=createGame('individual',2);
+g.pieces[0][0]={pos:23,route:'cut5'};g.phase='move';g.pending=[{steps:-1,label:'빽도'}];
+const choice=optionsFor(g.pieces[0][0],-1).find(x=>x.to===22);
+assert.equal(choice.route,'cut5');
+move(g,0,0,choice.route,0,22);
+assert.deepEqual(optionsFor(g.pieces[0][0],2).map(x=>x.to),[24]);
+console.log('PASS capture-only timer reset / non-capture shared budget / endgame stop / backdo route persistence');

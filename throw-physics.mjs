@@ -164,11 +164,11 @@ function throwOnce(power,seed){
     }
     if(moving)lastMotion=i;
   }
-  const frameEnd=Math.min(frames.length-1,lastMotion+7);
+  const frameEnd=Math.min(frames.length-1,lastMotion+2);
   const trimmed=frames.slice(0,frameEnd+1);
   // The last replay frame is ALWAYS the actual final server-simulated pose.
   trimmed[trimmed.length-1]=frames[frames.length-1];
-  return {frames:trimmed,bits,nak:outside.some(Boolean),outside,durationMs:Math.max(850,Math.min(2100,Math.round((trimmed.length-1)*50*.55))),
+  return {frames:trimmed,bits,nak:outside.some(Boolean),outside,durationMs:(trimmed.length-1)*50,
     physics:'server-ground-contact',seed};
 }
 export function simulateThrow(power=50,seed=randomBytes(4).readUInt32LE(0)){

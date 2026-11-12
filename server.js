@@ -3,6 +3,7 @@ const {createGame,movesFor,roll,move,teamOf}=require('./game');
 const auth=require('./auth');
 const {CATALOG,selectMissions,record,publicView}=require('./missions');
 const economyRules=require('./economy');
+const {afterMove}=require('./turn-clock');
 const PORT=Number(process.env.PORT)||3000,HOST=process.env.HOST||'0.0.0.0';
 const PUBLIC=path.join(__dirname,'public'),rooms=new Map(),clients=new Set();
 const TURN_MS=Number(process.env.YUT_TURN_MS)||20000, AUTO_MOVE_MS=Number(process.env.YUT_AUTO_MOVE_MS)||10000;
@@ -135,7 +136,7 @@ async function handle(c,msg){if(!msg||typeof msg!=='object')return;
  else if(msg.type==='move'){
   const priorTurn=r.game.turn;const info=move(r.game,c.player,Number(msg.piece),String(msg.route),Number(msg.rollIndex),msg.to);
   registerMove(r,c.player,info);if(r.game.turn!==priorTurn)r.turnSerial++;
-  if(r.game.winner!==null){r.deadline=null;r.autoMove=false;}else if(r.game.turn!==priorTurn){r.autoMove=false;r.deadline=Date.now()+TURN_MS;} // Same turn: do not reset remaining time.
+  afterMove(r,priorTurn,info.captured,Date.now(),TURN_MS); // Only a capture or new turn restores 20 seconds.
   if(r.game.winner!==null)await finishRound(r);broadcast(r);
  }else if(msg.type==='rematch'){
   if(r.game.winner===null)throw Error('경기가 끝나야 재경기할 수 있습니다.');if(!r.settled)throw Error('게임머니 정산을 마칠 때까지 다시 시작할 수 없습니다.');const old=r.game;r.game=createGame(old.mode,old.playerCount);r.game.players=old.players.map(p=>({...p}));r.started=false;r.starting=false;r.ready=Array(old.playerCount).fill(false);r.settled=false;r.deadline=null;r.autoMove=false;r.round++;r.matchId=r.code+'-'+r.round;r.missions=null;r.economy=null;broadcast(r);

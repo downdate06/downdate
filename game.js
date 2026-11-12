@@ -52,7 +52,7 @@ function optionsFor(piece,steps){
  // 27 is upper-left; 22 is upper-right on the rendered board.
  if(piece.pos===23&&steps===-1)return [
   {route:'cut10',to:27,branch:true,direction:'왼쪽 위'},
-  {route:'cut5fast',to:22,branch:true,direction:'오른쪽 위'}
+  {route:'cut5',to:22,branch:true,direction:'오른쪽 위'}
  ];
  // Back-do at the bottom-left corner or the finish tile also branches.
  if(piece.pos===15&&steps===-1)return [

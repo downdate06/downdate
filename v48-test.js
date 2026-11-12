@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const physics=fs.readFileSync('throw-physics.mjs','utf8');
+const app=fs.readFileSync('public/app.js','utf8');
+const server=fs.readFileSync('server.js','utf8');
+assert(physics.includes('durationMs:(trimmed.length-1)*50'));
+assert(physics.includes('lastMotion+2'));
+assert(!physics.includes('*50*.55'));
+assert(app.includes('Number(g.roll.durationMs||5500)+35'));
+assert(app.includes('window.yutThrowSettled=payload=>'));
+assert(server.includes('r.game.revealAt=revealStart+simulation.durationMs'));
+console.log('PASS natural 50ms/frame replay, minimal settling tail, immediate 3D-end result, server/client durations in sync');

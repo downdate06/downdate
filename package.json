@@ -1,11 +1,11 @@
 {
   "name": "yutnori-online",
-  "version": "4.6.0",
+  "version": "4.8.0",
   "private": true,
   "description": "2~4인 윷놀이 · 게임 룰북 · 가상 머니 참가비/벌금 · 서버 미션 40종 · 룰/물리 테스트",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests.js && node physics-test.mjs && node throw-test.js && node integration-test.js && node physics-sim-test.mjs && node v41-test.js && node v42-test.js && node ui-test.js"
+    "test": "node tests.js && node physics-test.mjs && node throw-test.js && node integration-test.js && node physics-sim-test.mjs && node v41-test.js && node v42-test.js && node ui-test.js && node v47-test.js && node v48-test.js"
   },
   "engines": {
     "node": ">=20"
